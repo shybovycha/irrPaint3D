@@ -1,0 +1,6 @@
+*~
+*.elf
+*.out
+*.o
+nbproject
+media
