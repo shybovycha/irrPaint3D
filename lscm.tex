@@ -1,0 +1,174 @@
+\documentclass[12pt]{article}
+\author{a.shoobovych}
+\usepackage{mathtools}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{picture}
+
+\begin{document}
+
+	\section{LSCM}
+		Let's perform LCSM (Least Square Conformal Maps) algorithm!
+		\\ \\
+		First of all, here's the algorithm:
+		
+		\begin{enumerate}
+			\item split entire model to charts
+			\item unwrap charts
+			\item pack charts to one map
+		\end{enumerate}
+			
+		More detailed algorithm description:
+		
+		\subsection{split entire model to charts}
+			\begin{enumerate}
+				\item detect features defining chart boundaries
+				\item grow features (thin them)
+				\item expand charts (create them)
+				\item validate charts (optional; overlaps)
+			\end{enumerate}
+			
+			\subsubsection{Feature Detection}
+				\setlength{\unitlength}{1cm}
+				\begin{picture}(11,6)
+					\put(0,0){\vector(0,1){5}}
+					\put(0,0){\vector(1,0){10}}
+					\put(0,0){\vector(4,3){4.5}}
+				\end{picture}
+		
+		\subsection{unwrap charts (LSCM itself)}
+			\begin{center}
+				$X = (A^{T} A)^{-1} A^{T} b$.
+			\end{center}
+			
+			\emph{x} is a vector of $(u, v)$ pairs. It is our goal!
+			\\
+			
+			\begin{displaymath}
+				A = \begin{pmatrix}
+					M^{1}_{f} & -M^{2}_{f} \\
+					M^{2}_{f} & M^{1}{f} \\
+				\end{pmatrix}
+			\end{displaymath}
+				
+			$M$ is a matrix (see below) of complex numbers. It is split into two parts:
+			\\
+			
+			\begin{displaymath}
+				M \Leftrightarrow 
+				\begin{pmatrix}
+					M_{f} & M_{p} \cr
+				\end{pmatrix}
+				\Leftrightarrow 
+				\begin{pmatrix}
+					 M_{n' \times (n - p)} & M_{n' \times p} \\
+				\end{pmatrix}
+			\end{displaymath}
+			
+			\begin{displaymath}
+				p = 2 ;\qquad 
+				n' = triangleCount ;\qquad 
+				n = vertexCount ;\qquad 
+			\end{displaymath}
+			
+			\begin{displaymath}
+				M \Leftrightarrow 
+				\begin{pmatrix}
+					M_{n' \times (n - 2)} & M_{n' \times 2} \\
+				\end{pmatrix}
+			\end{displaymath}
+	
+			Up-indices $^{1}$ and $^{2}$ stand for \emph{real} and \emph{imaginary} parts of complex numbers, respectively.		
+			\\
+			
+			\begin{displaymath}
+				b = 
+				\begin{pmatrix}
+					M^{1}_{p} & -M^{2}_{p} \\ 
+					M^{2}_{p} & M^{1}_{p} \\
+				\end{pmatrix}
+				\begin{pmatrix}
+					U^{1}_{p} \\
+					U^{2}_{p} \\ 
+				\end{pmatrix}
+			\end{displaymath}
+			
+			\begin{displaymath}
+				M = (m_{i,j})
+			\end{displaymath}
+			
+			\begin{displaymath}
+				m_{i,j} = 
+				\begin{cases}
+					\frac{W_{j, T_{i}}}{\sqrt{d_{T_{i}}}} & \text{if Vert[j]} \in \triangle T_{i} \\
+					0 & \text{otherwise} \\
+				\end{cases}
+			\end{displaymath}
+			
+			Here, $d_{T_{i}}$ is the doubled square of $\triangle T_{i}$: 
+			
+			\begin{displaymath}
+				d_{T_{i}} = 2S_{\triangle T_{i}}
+				\begin{cases} 
+					W_{j,1} = (x_{3} - x_{2}) + i(y_{3} - y_{2}) \\ 
+					W_{j,2} = (x_{1} - x_{3}) + i(y_{1} - y_{3}) \\ 
+					W_{j,3} = (x_{2} - x_{1}) + i(y_{2} - y_{1}) \\ 
+				\end{cases}
+			\end{displaymath}
+			
+			So, just calculate the right index for i ($W_{j,i}$, in the first formula; here $i = \sqrt{-1}$) and use either $W_{j,1}$, $W_{j,2}$ or $W_{j,3}$
+			\\
+			
+			$U_{p}$ is a vector of $u + iv$ complex numbers determining UV-coordinates for \emph{pinned} vertices (sub-index of \emph{p})
+			\\
+	
+	\pagebreak
+			
+	\section{Implementation}
+		\subsection{Feature detection}
+		
+			some text
+			
+			\definecolor{dkgreen}{rgb}{0,0.6,0}
+			\definecolor{gray}{rgb}{0.5,0.5,0.5}
+			\definecolor{mauve}{rgb}{0.58,0,0.82}
+			
+			\lstset{
+				basicstyle=\footnotesize,           % the size of the fonts that are used for the code
+				numbers=left,                   % where to put the line-numbers
+				numberstyle=\footnotesize,          % the size of the fonts that are used for the line-numbers
+				%
+				numbersep=5pt,                  % how far the line-numbers are from the code
+				backgroundcolor=\color{white},      % choose the background color. You must add \usepackage{color}
+				showspaces=false,               % show spaces adding particular underscores
+				showstringspaces=true,         % underline spaces within strings
+				showtabs=false,                 % show tabs within strings adding particular underscores
+				frame=single,                   % adds a frame around the code
+				tabsize=2,                      % sets default tabsize to 2 spaces
+				captionpos=b,                   % sets the caption-position to bottom
+				breaklines=true,                % sets automatic line breaking
+				breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+				title=\lstname,                   % show the filename of files included with \lstinputlisting;
+								% also try caption instead of title
+				numberstyle=\tiny\color{gray},        % line number style
+				keywordstyle=\color{blue},          % keyword style
+				commentstyle=\color{dkgreen},       % comment style
+				stringstyle=\color{mauve},         % string literal style
+				escapeinside={\%*}{*)},            % if you want to add a comment within your code
+				morekeywords={*,...}               % if you want to add more keywords to the set
+			}
+		
+			\begin{lstlisting}[frame=single,language={C++},caption={moo}]
+				#include <irrlicht.h>
+				
+				using namespace irr;
+				
+				int main()
+				{
+					printf("hello, Wooooooooooooooooooooooooooooooooooooooooooorld!"); moo; foo; bar; baz;
+					
+					return 0;
+				}
+			\end{lstlisting}
+			
+\end{document}
