@@ -121,6 +121,28 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
     return vector2di(V[0], V[1]);
 }
 
+HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex* vertices)
+{
+	vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
+
+    if (coVerts.Y < 0)
+        coVerts.Y = coVerts.X; else
+	if (coVerts.X < 0)
+		return 0;
+
+    u32 v1 = coVerts.X, v2 = coVerts.Y;
+
+    vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
+    vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
+    f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
+
+    HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
+
+    he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
+
+	return he;
+}
+
 int main()
 {
     IrrlichtDevice *device =
@@ -177,22 +199,10 @@ int main()
             {
                 u32 e1 = indices[e], e2 = indices[e + 1];
 
-                vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
+				HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (coVerts.Y < 0)
-                    coVerts.Y = coVerts.X; else
-				if (coVerts.X < 0)
+				if (!he)
 					return 1;
-
-                u32 v1 = coVerts.X, v2 = coVerts.Y;
-
-                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
-                f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
-
-                HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
-
-                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
@@ -200,22 +210,10 @@ int main()
             {
                 u32 e1 = indices[e + 1], e2 = indices[e + 2];
 
-                vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
+                HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (coVerts.Y < 0)
-                    coVerts.Y = coVerts.X; else
-				if (coVerts.X < 0)
+				if (!he)
 					return 1;
-
-                u32 v1 = coVerts.X, v2 = coVerts.Y;
-
-                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
-                f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
-
-                HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
-
-                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
@@ -223,22 +221,10 @@ int main()
             {
                 u32 e1 = indices[e + 2], e2 = indices[e];
 
-                vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
+                HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (coVerts.Y < 0)
-                    coVerts.Y = coVerts.X; else
-				if (coVerts.X < 0)
+				if (!he)
 					return 1;
-
-                u32 v1 = coVerts.X, v2 = coVerts.Y;
-
-                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
-                f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
-
-                HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
-
-                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
