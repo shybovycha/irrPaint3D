@@ -49,7 +49,11 @@ So, just calculate the right index for i (<latex>W_{j,i}</latex>, in the first f
 <latex>U_{p}</latex> is a vector of <latex>u + iv</latex> complex numbers determining UV-coordinates for //pinned// vertices (sub-index of //p//)
 */
 
+#ifdef _WIN32
+#include <irrlicht.h>
+#else
 #include <irrlicht/irrlicht.h>
+#endif
 
 using namespace irr;
 
@@ -91,47 +95,30 @@ struct HalfEdge
 
 vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
 {
-    s16 v1 = -1, v2 = -1;
+	s16 V[] = { -1, -1 }, cnt = 0;
 
     for (u16 v = 0; v < indicesCnt; v += 3)
     {
-        if (e1 == indices[v] && e2 == indices[v + 1])
-            v1 = indices[v + 2]; else
-        if (e1 == indices[v] && e2 == indices[v + 2])
-            v1 = indices[v + 1]; else
-        if (e1 == indices[v + 2] && e2 == indices[v + 1])
-            v1 = indices[v]; else
-        if (e1 == indices[v + 2] && e2 == indices[v])
-            v1 = indices[v + 1]; else
-        if (e1 == indices[v + 1] && e2 == indices[v])
-            v1 = indices[v + 2]; else
-        if (e1 == indices[v + 1] && e2 == indices[v + 2])
-            v1 = indices[v];
+		u32 a = indices[v], b = indices[v + 1], c = indices[v + 2];
 
-        if (v1 > -1)
+		if (a == e1 && c == e2)
+			V[cnt++] = b; else
+		if (a == e1 && b == e2)
+			V[cnt++] = c; else
+		if (a == e2 && b == e1)
+			V[cnt++] = c; else
+		if (b == e1 && c == e2)
+			V[cnt++] = a; else
+		if (b == e2 && c == e1)
+			V[cnt++] = a; else
+		if (a == e2 && c == e1)
+			V[cnt++] = b;
+
+        if (cnt > 1)
             break;
     }
 
-    for (u16 v = 0; v < indicesCnt; v += 3)
-    {
-        if (e1 == indices[v] && e2 == indices[v + 1] && indices[v + 2] != v1)
-            v2 = indices[v + 2]; else
-        if (e1 == indices[v] && e2 == indices[v + 2] && indices[v + 1] != v1)
-            v2 = indices[v + 1]; else
-        if (e1 == indices[v + 2] && e2 == indices[v + 1] && indices[v] != v1)
-            v2 = indices[v]; else
-        if (e1 == indices[v + 2] && e2 == indices[v] && indices[v + 1] != v1)
-            v2 = indices[v + 1]; else
-        if (e1 == indices[v + 1] && e2 == indices[v] && indices[v + 2] != v1)
-            v2 = indices[v + 2]; else
-        if (e1 == indices[v + 1] && e2 == indices[v + 2] && indices[v] != v1)
-            v2 = indices[v];
-
-        if (v2 > -1)
-            break;
-    }
-
-    return vector2di(v1, v2);
+    return vector2di(V[0], V[1]);
 }
 
 int main()
@@ -152,7 +139,7 @@ int main()
     guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
             rect<s32>(10,10,260,22), true);
 
-    /*IAnimatedMesh* modelMesh = smgr->getMesh("../../media/sydney.md2");
+    IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
 
     if (!modelMesh)
     {
@@ -167,50 +154,23 @@ int main()
     {
         node->setMaterialFlag(EMF_LIGHTING, false);
         node->setAnimationSpeed(0);
-        node->setMaterialTexture( 0, driver->getTexture("../../media/sydney.bmp") );
-    }*/
+        node->setMaterialTexture( 0, driver->getTexture("../../media/dwarf.jpg") );
+    }
 
-    //IMesh* mesh = modelMesh->getMesh(0);
-    u16 meshBufferCount = 1; //mesh->getMeshBufferCount();
+	IMesh* mesh = modelMesh->getMesh(0);
+    u16 meshBufferCount = mesh->getMeshBufferCount();
     array<HalfEdge*> halfEdges;
 
     // create source data for feature detection - form half-edge list
 
-    u16 indices[] = { 1,3,5,  3,2,1,  3,2,4,  2,4,7,  3,6,4,  8,2,1,  1,5,8,  5,6,3,  5,7,8,  7,2,8,  4,6,7,  7,6,5 }; //mb->getIndices();
-    u32 indexCount = 12 * 3; //mb->getIndexCount();
-
-    //S3DVertex* vertices = mb->getVertices();
-
-    vector3df vertices[] = {
-        vector3df(0, 0, 0),
-        vector3df(0, 10, 10),
-        vector3df(0, 10, 0),
-        vector3df(10, 10, 10),
-        vector3df(10, 0, 0),
-        vector3df(10, 10, 0),
-        vector3df(10, 0, 10),
-        vector3df(0, 0, 10)
-    };
-
     for (u16 i = 0; i < meshBufferCount; i++)
     {
-        //IMeshBuffer* mb = mesh->getMeshBuffer(i);
+        IMeshBuffer* mb = mesh->getMeshBuffer(i);
 
-        u16 indices[] = { 1,3,5,  3,2,1,  3,2,4,  2,4,7,  3,6,4,  8,2,1,  1,5,8,  5,6,3,  5,7,8,  7,2,8,  4,6,7,  7,6,5 }; //mb->getIndices();
-        u32 indexCount = 12 * 3; //mb->getIndexCount();
+        u16* indices = mb->getIndices();
+		u32 indexCount = mb->getIndexCount();
 
-        //S3DVertex* vertices = mb->getVertices();
-
-        vector3df vertices[] = {
-            vector3df(0, 0, 0),
-            vector3df(0, 10, 10),
-            vector3df(0, 10, 0),
-            vector3df(10, 10, 10),
-            vector3df(10, 0, 0),
-            vector3df(10, 10, 0),
-            vector3df(10, 0, 10),
-            vector3df(0, 0, 10)
-        };
+		S3DVertex* vertices = (S3DVertex*) mb->getVertices();
 
         for (u32 e = 0; e < indexCount; e += 3)
         {
@@ -219,19 +179,20 @@ int main()
 
                 vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
 
-                if (coVerts.X < 0 || coVerts.Y < 0)
-                    return 1;
+                if (coVerts.Y < 0)
+                    coVerts.Y = coVerts.X; else
+				if (coVerts.X < 0)
+					return 1;
 
                 u32 v1 = coVerts.X, v2 = coVerts.Y;
 
-                //vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), e = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df a1 = (vertices[v1] - vertices[e1]), a2 = (vertices[v2] - vertices[e1]), e = (vertices[e2] - vertices[e1]);
-                vector3df n1 = a1.crossProduct(e), n2 = a2.crossProduct(e);
+                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
+                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
                 f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
 
                 HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
 
-                he->setPositions(vertices[e1], vertices[e2], vertices[v1], vertices[v2]);
+                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
@@ -241,19 +202,20 @@ int main()
 
                 vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
 
-                if (coVerts.X < 0 || coVerts.Y < 0)
-                    return 1;
+                if (coVerts.Y < 0)
+                    coVerts.Y = coVerts.X; else
+				if (coVerts.X < 0)
+					return 1;
 
                 u32 v1 = coVerts.X, v2 = coVerts.Y;
 
-                //vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), e = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df a1 = (vertices[v1] - vertices[e1]), a2 = (vertices[v2] - vertices[e1]), e = (vertices[e2] - vertices[e1]);
-                vector3df n1 = a1.crossProduct(e), n2 = a2.crossProduct(e);
+                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
+                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
                 f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
 
                 HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
 
-                he->setPositions(vertices[e1], vertices[e2], vertices[v1], vertices[v2]);
+                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
@@ -263,19 +225,20 @@ int main()
 
                 vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
 
-                if (coVerts.X < 0 || coVerts.Y < 0)
-                    return 1;
+                if (coVerts.Y < 0)
+                    coVerts.Y = coVerts.X; else
+				if (coVerts.X < 0)
+					return 1;
 
                 u32 v1 = coVerts.X, v2 = coVerts.Y;
 
-                //vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), e = (vertices[e2].Pos - vertices[e1].Pos);
-                vector3df a1 = (vertices[v1] - vertices[e1]), a2 = (vertices[v2] - vertices[e1]), e = (vertices[e2] - vertices[e1]);
-                vector3df n1 = a1.crossProduct(e), n2 = a2.crossProduct(e);
+                vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
+                vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
                 f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
 
                 HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
 
-                he->setPositions(vertices[e1], vertices[e2], vertices[v1], vertices[v2]);
+                he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
                 halfEdges.push_back(he);
             }
@@ -309,19 +272,17 @@ int main()
 
     smgr->addCameraSceneNodeFPS(0, 50.f, 0.15f);
 
-    while(device->run())
+    while (device->run())
     {
+		if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
+			continue;
+
         driver->beginScene(true, true, SColor(255,100,101,140));
 
         for (u16 i = 0; i < paths.size(); i++)
         {
             driver->draw3DLine(paths[i]->pe1, paths[i]->pe2, SColor(55, 100, 255, 140));
         }
-
-        /*for (u16 i = 0; i < indexCount; i += 3)
-        {
-            driver->draw3DTriangle(triangle3df(vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]]));
-        }*/
 
         smgr->drawAll();
         guienv->drawAll();
