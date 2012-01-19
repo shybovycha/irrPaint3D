@@ -1,0 +1,423 @@
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
+\begin_document
+\begin_header
+\textclass article
+\begin_preamble
+
+\author{a.shoobovych}
+\usepackage{mathtools}\usepackage{listings}\@ifundefined{definecolor}
+ {\usepackage{color}}{}
+\usepackage{picture}
+\end_preamble
+\use_default_options false
+\maintain_unincluded_children false
+\language english
+\language_package none
+\inputencoding auto
+\fontencoding default
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize 12
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_amsmath 1
+\use_esint 1
+\use_mhchem 0
+\use_mathdots 0
+\cite_engine basic
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\use_refstyle 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Section
+LSCM
+\end_layout
+
+\begin_layout Standard
+Let's perform LCSM (Least Square Conformal Maps) algorithm! 
+\begin_inset Newline newline
+\end_inset
+
+ 
+\begin_inset Newline newline
+\end_inset
+
+ First of all, here's the algorithm: 
+\end_layout
+
+\begin_layout Enumerate
+split entire model to charts 
+\end_layout
+
+\begin_layout Enumerate
+unwrap charts 
+\end_layout
+
+\begin_layout Enumerate
+pack charts to one map 
+\end_layout
+
+\begin_layout Standard
+More detailed algorithm description: 
+\end_layout
+
+\begin_layout Subsection
+Split entire model to charts
+\end_layout
+
+\begin_layout Enumerate
+detect features defining chart boundaries 
+\end_layout
+
+\begin_layout Enumerate
+grow features (thin them) 
+\end_layout
+
+\begin_layout Enumerate
+expand charts (create them) 
+\end_layout
+
+\begin_layout Enumerate
+validate charts (optional; overlaps) 
+\end_layout
+
+\begin_layout Subsubsection
+Feature Detection
+\end_layout
+
+\begin_layout Standard
+Тут нам необхідно визначити features - границі charts.
+ Для того скористаймось структурою half-edge:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Boxed
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "100col%"
+special "none"
+height "1in"
+height_special "totalheight"
+status open
+
+\begin_layout Standard
+struct HalfEdge
+\end_layout
+
+\begin_layout Plain Layout
+{
+\end_layout
+
+\begin_layout Plain Layout
+u32 e1, e2; // вершини ребра
+\end_layout
+
+\begin_layout Plain Layout
+u32 v1, v2; // вершини ребер, суміжних з поточним; 
+\begin_inset Quotes eld
+\end_inset
+
+бічні
+\begin_inset Quotes erd
+\end_inset
+
+ вершини
+\end_layout
+
+\begin_layout Plain Layout
+f32 w; // 
+\begin_inset Quotes eld
+\end_inset
+
+вага
+\begin_inset Quotes erd
+\end_inset
+
+ ребра
+\end_layout
+
+\begin_layout Standard
+vector3df pe1, pe2, pv1, pv2; // координати вершин структури; викор.
+ для малювання
+\end_layout
+
+\begin_layout Plain Layout
+};
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage pagebreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+unwrap charts (LSCM itself)
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Formula $X=(A^{T}A)^{-1}A^{T}b$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+x
+\emph default
+ is a vector of 
+\begin_inset Formula $(u,v)$
+\end_inset
+
+ pairs.
+ It is our goal! 
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+A=\begin{pmatrix}M_{f}^{1} & -M_{f}^{2}\\
+M_{f}^{2} & M_{f}^{1}
+\end{pmatrix}
+\]
+
+\end_inset
+
+ 
+\begin_inset Formula $M$
+\end_inset
+
+ is a matrix (see below) of complex numbers.
+ It is split into two parts: 
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+M\Leftrightarrow\begin{pmatrix}M_{f} & M_{p}\end{pmatrix}\Leftrightarrow\begin{pmatrix}M_{n'\times(n-p)} & M_{n'\times p}\end{pmatrix}
+\]
+
+\end_inset
+
+ 
+\begin_inset Formula 
+\[
+p=2;\qquad n'=triangleCount;\qquad n=vertexCount;\qquad
+\]
+
+\end_inset
+
+ 
+\begin_inset Formula 
+\[
+M\Leftrightarrow\begin{pmatrix}M_{n'\times(n-2)} & M_{n'\times2}\end{pmatrix}
+\]
+
+\end_inset
+
+ Up-indices 
+\begin_inset Formula $^{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $^{2}$
+\end_inset
+
+ stand for 
+\emph on
+real
+\emph default
+ and 
+\emph on
+imaginary
+\emph default
+ parts of complex numbers, respectively.
+ 
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+b=\begin{pmatrix}M_{p}^{1} & -M_{p}^{2}\\
+M_{p}^{2} & M_{p}^{1}
+\end{pmatrix}\begin{pmatrix}U_{p}^{1}\\
+U_{p}^{2}
+\end{pmatrix}
+\]
+
+\end_inset
+
+ 
+\begin_inset Formula 
+\[
+M=(m_{i,j})
+\]
+
+\end_inset
+
+ 
+\begin_inset Formula 
+\[
+m_{i,j}=\begin{cases}
+\frac{W_{j,T_{i}}}{\sqrt{d_{T_{i}}}} & \text{if Vert[j]}\in\triangle T_{i}\\
+0 & \text{otherwise}
+\end{cases}
+\]
+
+\end_inset
+
+ Here, 
+\begin_inset Formula $d_{T_{i}}$
+\end_inset
+
+ is the doubled square of 
+\begin_inset Formula $\triangle T_{i}$
+\end_inset
+
+: 
+\begin_inset Formula 
+\[
+d_{T_{i}}=2S_{\triangle T_{i}}\begin{cases}
+W_{j,1}=(x_{3}-x_{2})+i(y_{3}-y_{2})\\
+W_{j,2}=(x_{1}-x_{3})+i(y_{1}-y_{3})\\
+W_{j,3}=(x_{2}-x_{1})+i(y_{2}-y_{1})
+\end{cases}
+\]
+
+\end_inset
+
+ So, just calculate the right index for i (
+\begin_inset Formula $W_{j,i}$
+\end_inset
+
+, in the first formula; here 
+\begin_inset Formula $i=\sqrt{-1}$
+\end_inset
+
+) and use either 
+\begin_inset Formula $W_{j,1}$
+\end_inset
+
+, 
+\begin_inset Formula $W_{j,2}$
+\end_inset
+
+ or 
+\begin_inset Formula $W_{j,3}$
+\end_inset
+
+ 
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $U_{p}$
+\end_inset
+
+ is a vector of 
+\begin_inset Formula $u+iv$
+\end_inset
+
+ complex numbers determining UV-coordinates for 
+\emph on
+pinned
+\emph default
+ vertices (sub-index of 
+\emph on
+p
+\emph default
+) 
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage pagebreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Implementation
+\end_layout
+
+\begin_layout Subsection
+Feature detection
+\end_layout
+
+\end_body
+\end_document
