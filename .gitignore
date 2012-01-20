@@ -4,3 +4,5 @@
 *.o
 nbproject
 media
+*.creator*
+*.user*

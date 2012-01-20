@@ -143,66 +143,29 @@ HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex
 	return he;
 }
 
-int main()
+array<HalfEdge*> fillHalfEdges(IMesh* mesh)
 {
-    IrrlichtDevice *device =
-            createDevice( video::EDT_OPENGL, dimension2d<u32>(640, 480), 16,
-                    false, false, false, 0);
-
-    if (!device)
-        return 1;
-
-    device->setWindowCaption(L"Hello World! - Irrlicht Engine Demo");
-
-    IVideoDriver* driver = device->getVideoDriver();
-    ISceneManager* smgr = device->getSceneManager();
-    IGUIEnvironment* guienv = device->getGUIEnvironment();
-
-    guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
-            rect<s32>(10,10,260,22), true);
-
-    IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
-
-    if (!modelMesh)
-    {
-        device->drop();
-
-        return 1;
-    }
-
-    IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode( modelMesh );
-
-    if (node)
-    {
-        node->setMaterialFlag(EMF_LIGHTING, false);
-        node->setAnimationSpeed(0);
-        node->setMaterialTexture( 0, driver->getTexture("../../media/dwarf.jpg") );
-    }
-
-	IMesh* mesh = modelMesh->getMesh(0);
-    u16 meshBufferCount = mesh->getMeshBufferCount();
     array<HalfEdge*> halfEdges;
-
-    // create source data for feature detection - form half-edge list
+    u16 meshBufferCount = mesh->getMeshBufferCount();
 
     for (u16 i = 0; i < meshBufferCount; i++)
     {
         IMeshBuffer* mb = mesh->getMeshBuffer(i);
 
         u16* indices = mb->getIndices();
-		u32 indexCount = mb->getIndexCount();
+        u32 indexCount = mb->getIndexCount();
 
-		S3DVertex* vertices = (S3DVertex*) mb->getVertices();
+        S3DVertex* vertices = (S3DVertex*) mb->getVertices();
 
         for (u32 e = 0; e < indexCount; e += 3)
         {
             {
                 u32 e1 = indices[e], e2 = indices[e + 1];
 
-				HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
+                HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-				if (!he)
-					return 1;
+                if (!he)
+                    return 1;
 
                 halfEdges.push_back(he);
             }
@@ -212,8 +175,8 @@ int main()
 
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-				if (!he)
-					return 1;
+                if (!he)
+                    return 1;
 
                 halfEdges.push_back(he);
             }
@@ -223,19 +186,22 @@ int main()
 
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-				if (!he)
-					return 1;
+                if (!he)
+                    return 1;
 
                 halfEdges.push_back(he);
             }
         }
     }
 
+    return halfEdges;
+}
+
+array<HalfEdge*> detectAndGrowFeatures(array<HalfEdge*> halfEdges, f32 Bl, f32 Bu)
+{
     array<HalfEdge*> paths;
     HalfEdge* selected = 0;
-    f32 Bu = 0.96f, Bl = 0.92f;
 
-    // detect features
     for (u32 i = 0; i < halfEdges.size(); i++)
     {
         HalfEdge* he = halfEdges[i];
@@ -255,6 +221,52 @@ int main()
             }
         }
     }
+
+    return paths;
+}
+
+int main()
+{
+    IrrlichtDevice *device =
+            createDevice( video::EDT_BURNINGSVIDEO, dimension2d<u32>(640, 480), 16,
+                    false, false, false, 0);
+
+    if (!device)
+        return 1;
+
+    device->setWindowCaption(L"Hello World! - Irrlicht Engine Demo");
+
+    IVideoDriver* driver = device->getVideoDriver();
+    ISceneManager* smgr = device->getSceneManager();
+    IGUIEnvironment* guienv = device->getGUIEnvironment();
+
+    guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
+            rect<s32>(10,10,260,22), true);
+
+    IAnimatedMesh* modelMesh = smgr->getMesh("./media/dwarf.x");
+
+    if (!modelMesh)
+    {
+        device->drop();
+
+        return 1;
+    }
+
+    IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode( modelMesh );
+
+    if (node)
+    {
+        node->setMaterialFlag(EMF_LIGHTING, false);
+        node->setAnimationSpeed(0);
+        node->setMaterialTexture( 0, driver->getTexture("./media/dwarf.jpg") );
+    }
+
+	IMesh* mesh = modelMesh->getMesh(0);
+    array<HalfEdge*> halfEdges = fillHalfEdges(mesh);
+
+    f32 Bu = 0.96f, Bl = 0.92f;
+
+    array<HalfEdge*> paths = detectAndGrowFeatures(halfEdges, Bl, Bu);
 
     smgr->addCameraSceneNodeFPS(0, 50.f, 0.15f);
 
