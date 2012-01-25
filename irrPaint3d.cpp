@@ -74,7 +74,7 @@ struct HalfEdge
     u32 v1, v2; // side vertices
     f32 w; // weight
     vector3df pe1, pe2, pv1, pv2;
-    
+
     HalfEdge(u32 _e1, u32 _e2, u32 _v1, u32 _v2, f32 _w = 0.f)
     {
         e1 = _e1;
@@ -228,8 +228,8 @@ array<HalfEdge*> detectAndGrowFeatures(array<HalfEdge*> halfEdges, f32 Bl, f32 B
 int main()
 {
     IrrlichtDevice *device =
-            createDevice( video::EDT_BURNINGSVIDEO, dimension2d<u32>(640, 480), 16,
-                    false, false, false, 0);
+            createDevice(video::EDT_BURNINGSVIDEO, dimension2d<u32>(1024, 768), 32,
+                    false, false, true, 0);
 
     if (!device)
         return 1;
@@ -243,7 +243,7 @@ int main()
     guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
             rect<s32>(10,10,260,22), true);
 
-    IAnimatedMesh* modelMesh = smgr->getMesh("./media/dwarf.x");
+    IAnimatedMesh* modelMesh = smgr->getMesh("./media/Sovereign_1.obj");
 
     if (!modelMesh)
     {
@@ -258,7 +258,7 @@ int main()
     {
         node->setMaterialFlag(EMF_LIGHTING, false);
         node->setAnimationSpeed(0);
-        node->setMaterialTexture( 0, driver->getTexture("./media/dwarf.jpg") );
+        node->setMaterialTexture( 0, driver->getTexture("./media/Sovereign_1.jpg") );
     }
 
 	IMesh* mesh = modelMesh->getMesh(0);
@@ -268,7 +268,7 @@ int main()
 
     array<HalfEdge*> paths = detectAndGrowFeatures(halfEdges, Bl, Bu);
 
-    smgr->addCameraSceneNodeFPS(0, 50.f, 0.15f);
+    smgr->addCameraSceneNodeFPS(0, 50.f, 0.0125f);
 
     while (device->run())
     {
@@ -277,12 +277,13 @@ int main()
 
         driver->beginScene(true, true, SColor(255,100,101,140));
 
+	smgr->drawAll();
+
         for (u16 i = 0; i < paths.size(); i++)
         {
-            driver->draw3DLine(paths[i]->pe1, paths[i]->pe2, SColor(55, 100, 255, 140));
+            driver->draw3DLine(paths[i]->pe1 * 1.005, paths[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
         }
 
-        smgr->drawAll();
         guienv->drawAll();
 
         driver->endScene();
@@ -292,3 +293,54 @@ int main()
 
     return 0;
 }
+/***************
+
+The original LSCM algorithm for growing charts :
+
+-----------------------
+
+EdgeHeap : heap of directed edges (with associated face F(edge))
+    sorted by dist(F(edge)) (dist is distance to feature)
+
+mark all edges as "chart boundaries"
+track is_boundary(edge)
+
+track chart(face) , tells you which chart a face is in
+
+EdgeHeap contains all edge to consider growing a chart from
+start with EdgeHeap clear
+
+Seed charts :
+{
+    chart[i] = seed face
+    push edges of seed face to EdgeHeap
+}
+// each connected area must have at least one seed
+// each connected area that is not a disk must have at least *two* seeds
+
+// grow charts :
+while EdgeHeap not empty :
+{
+    edge = EdgeHeap.pop
+    // assert is_boundary(edge)
+    face = F(edge) // is the face to consider adding
+    prev = F(edge flipped) // is the face growing off of
+    // assert chart(prev) != none
+
+    if ( chart(face) = none )
+    {
+        add face to chart(prev)
+        set is_boundary(edge) = false
+        consider edges of "face" and "prev" ; any edge which is not connected to two other
+            is_boundary() edges, mark as not being is_boundary() either
+        push edges of face to EdgeHeap (if they are is_boundary() true)
+    }
+    else if ( chart(face) != chart(prev) )
+    {
+        // consider merging the charts
+
+    }
+}
+
+*******************/
+
