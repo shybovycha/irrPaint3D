@@ -65,7 +65,7 @@ using namespace gui;
 
 #ifdef _IRR_WINDOWS_
 #pragma comment(lib, "Irrlicht.lib")
-#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
+//#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 #endif
 
 struct HalfEdge
@@ -74,7 +74,7 @@ struct HalfEdge
     u32 v1, v2; // side vertices
     f32 w; // weight
     vector3df pe1, pe2, pv1, pv2;
-
+    
     HalfEdge(u32 _e1, u32 _e2, u32 _v1, u32 _v2, f32 _w = 0.f)
     {
         e1 = _e1;
@@ -93,7 +93,7 @@ struct HalfEdge
     }
 };
 
-vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
+vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3DVertex* vertices, f32 threshold = 0.001f)
 {
 	s16 V[] = { -1, -1 }, cnt = 0;
 
@@ -101,7 +101,7 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
     {
 		u32 a = indices[v], b = indices[v + 1], c = indices[v + 2];
 
-		if (a == e1 && c == e2)
+		/*if (a == e1 && c == e2)
 			V[cnt++] = b; else
 		if (a == e1 && b == e2)
 			V[cnt++] = c; else
@@ -112,6 +112,19 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
 		if (b == e2 && c == e1)
 			V[cnt++] = a; else
 		if (a == e2 && c == e1)
+			V[cnt++] = b; else*/
+
+		if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
+			V[cnt++] = b; else
+		if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e2].Pos).getLength() < threshold)
+			V[cnt++] = c; else
+		if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e1].Pos).getLength() < threshold)
+			V[cnt++] = c; else
+		if ((vertices[b].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
+			V[cnt++] = a; else
+		if ((vertices[b].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
+			V[cnt++] = a; else
+		if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
 			V[cnt++] = b;
 
         if (cnt > 1)
@@ -123,7 +136,7 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt)
 
 HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex* vertices)
 {
-	vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount);
+	vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount, vertices);
 
     if (coVerts.Y < 0)
         coVerts.Y = coVerts.X; else
@@ -214,7 +227,7 @@ array<HalfEdge*> detectAndGrowFeatures(array<HalfEdge*> halfEdges, f32 Bl, f32 B
 
         if (he->w >= Bl)
         {
-            if ((selected->e1 == he->e1) || (selected->e1 == he->e2) || (selected->e2 == he->e1) || (selected->e2 == he->e2))
+            if (selected && ((selected->e1 == he->e1) || (selected->e1 == he->e2) || (selected->e2 == he->e1) || (selected->e2 == he->e2)))
             {
                 selected = he;
                 paths.push_back(he);
@@ -243,8 +256,14 @@ int main()
     guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
             rect<s32>(10,10,260,22), true);
 
-    IAnimatedMesh* modelMesh = smgr->getMesh("./media/Sovereign_1.obj");
+    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Biomech_Fiera.3DS");
+	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Sovereign_1.obj");
+	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
+	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/earth.x");
+	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/bun_zipper.ply");
 
+	IAnimatedMesh* modelMesh = smgr->getMesh("../../media/sydney.md2");
+	
     if (!modelMesh)
     {
         device->drop();
@@ -252,39 +271,55 @@ int main()
         return 1;
     }
 
-    IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode( modelMesh );
+    IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode(modelMesh);
+
+	//smgr->addLightSceneNode(0, vector3df(0, 100, 0), SColorf(100.f, 100.f, 100.f));
 
     if (node)
     {
         node->setMaterialFlag(EMF_LIGHTING, false);
         node->setAnimationSpeed(0);
-        node->setMaterialTexture( 0, driver->getTexture("./media/Sovereign_1.jpg") );
+        //node->setMaterialTexture( 0, driver->getTexture("../../media/Sovereign_1.jpg") );
+		//node->setScale(vector3df(0.f, 0.f, 0.f));
     }
+
+	//node->setScale(vector3df(10.f, 10.f, 10.f));
 
 	IMesh* mesh = modelMesh->getMesh(0);
     array<HalfEdge*> halfEdges = fillHalfEdges(mesh);
 
-    f32 Bu = 0.96f, Bl = 0.92f;
+    f32 Bu = 0.995f, Bl = 0.92f;
 
     array<HalfEdge*> paths = detectAndGrowFeatures(halfEdges, Bl, Bu);
 
     smgr->addCameraSceneNodeFPS(0, 50.f, 0.0125f);
+	smgr->getActiveCamera()->setNearValue(0.01);
 
-    while (device->run())
+	u32 edgeCount = 0;
+
+	for (u16 i = 0; i < modelMesh->getMeshBufferCount(); i++)
+		edgeCount += modelMesh->getMeshBuffer(i)->getIndexCount();
+
+	printf("Scars: %ld\nEdge count: %ld\n", paths.size(), edgeCount);
+
+	node->setVisible(false);
+
+	while (device->run())
     {
 		if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
 			continue;
 
-        driver->beginScene(true, true, SColor(255,100,101,140));
+		driver->beginScene(true, true, SColor(255,100,101,140));
 
-	smgr->drawAll();
+		smgr->drawAll();
+        guienv->drawAll();
 
-        for (u16 i = 0; i < paths.size(); i++)
+		driver->setTransform(video::ETS_WORLD, matrix4::EM4CONST_IDENTITY);
+
+		for (u16 i = 0; i < paths.size(); i++)
         {
             driver->draw3DLine(paths[i]->pe1 * 1.005, paths[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
         }
-
-        guienv->drawAll();
 
         driver->endScene();
     }
@@ -343,4 +378,3 @@ while EdgeHeap not empty :
 }
 
 *******************/
-
