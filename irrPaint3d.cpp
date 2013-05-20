@@ -106,6 +106,9 @@ So, just calculate the right index for i (<latex>W_{j,i}</latex>, in the first f
 #endif
 
 #include <vector>
+#include "CImg.h"
+
+using namespace cimg_library;
 
 using std::vector;
 
@@ -297,6 +300,8 @@ struct Triangle
 {
     vector<u32> vertices;
     vector<vector3df> positions;
+    vector<vector2di> UVs;
+
     s16 featureId;
     u16 meshBufferId;
 
@@ -342,6 +347,23 @@ struct Triangle
             featureId = f;
         }
     }
+
+    /*void mapOntoPlaneNear(vector3df A, vector3df B)
+    {
+
+    }
+
+    void mapOntoPlaneNear(Triangle parent)
+    {
+        vector<u32> commonIndexes = commonVertices(parent);
+
+        f32 a = positions, b, c;
+    }
+
+    void mapOntoPlane()
+    {
+
+    }*/
 };
 
 vector< vector<Triangle> > growFeatures(IMesh* mesh)
@@ -349,7 +371,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
     vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
     vector<HalfEdge*> paths = detectSeams(halfEdges);
 
-    map< u16, vector<u16> > connectedTrianglesList;
+    vector< vector<u16> > connectedTrianglesList;
 
     vector<Triangle> triangles;
     vector< vector<Triangle> > features;
@@ -379,7 +401,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
 
             u16 triangleIndex = triangles.size();
 
-            connectedTrianglesList[triangleIndex] = vector<u16>();
+            connectedTrianglesList.push_back(vector<u16>());
 
             triangles.push_back(triangle);
         }
@@ -399,52 +421,62 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
             vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
 
             if (c.size() > 1)
+                connectedTrianglesList[t1].push_back(t2);
+        }
+    }
+
+    // printf("Connected list size: %d\n", connectedTrianglesList.size());
+
+    for (u16 t1 = 0; t1 < connectedTrianglesList.size(); t1++)
+    {
+        for (u16 t2 = 0; t2 < connectedTrianglesList[t1].size(); t2++)
+        {
+            u16 ti1 = t1, ti2 = connectedTrianglesList[t1][t2];
+
+            vector<u32> c = triangles[ti1].commonVertices(triangles[ti2]);
+
+            int featureFound = 0;
+
+            for (u16 j = 0; j < P; j++)
             {
-                ((vector<u16>) connectedTrianglesList[t1]).push_back(t2);
-
-                int featureFound = 0;
-
-                for (u16 j = 0; j < P; j++)
+                if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
                 {
-                    if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
-                    {
-                        featureFound = 1;
+                    featureFound = 1;
 
-                        if (triangles[t1].featureId < 0)
-                        {
-                            vector<Triangle> f;
-                            f.push_back(triangles[t1]);
-                            features.push_back(f);
-                            triangles[t1].assignFeatureId(features.size() - 1);
-                        }
-
-                        if (triangles[t2].featureId < 0)
-                        {
-                            vector<Triangle> f;
-                            f.push_back(triangles[t2]);
-                            features.push_back(f);
-                            triangles[t2].assignFeatureId(features.size() - 1);
-                        }
-
-                        break;
-                    }
-                }
-
-                if (!featureFound)
-                {
-                    if (triangles[t1].featureId < 0)
+                    if (triangles[ti1].featureId < 0)
                     {
                         vector<Triangle> f;
-                        f.push_back(triangles[t1]);
+                        f.push_back(triangles[ti1]);
                         features.push_back(f);
-                        triangles[t1].assignFeatureId(features.size() - 1);
+                        triangles[ti1].assignFeatureId(features.size() - 1);
                     }
 
-                    if (triangles[t2].featureId < 0)
+                    if (triangles[ti2].featureId < 0)
                     {
-                        features[triangles[t1].featureId].push_back(triangles[t2]);
-                        triangles[t2].assignFeatureId(triangles[t1].featureId);
+                        vector<Triangle> f;
+                        f.push_back(triangles[ti2]);
+                        features.push_back(f);
+                        triangles[ti2].assignFeatureId(features.size() - 1);
                     }
+
+                    break;
+                }
+            }
+
+            if (!featureFound)
+            {
+                if (triangles[ti1].featureId < 0)
+                {
+                    vector<Triangle> f;
+                    f.push_back(triangles[ti1]);
+                    features.push_back(f);
+                    triangles[ti1].assignFeatureId(features.size() - 1);
+                }
+
+                if (triangles[ti2].featureId < 0)
+                {
+                    features[triangles[ti1].featureId].push_back(triangles[ti2]);
+                    triangles[ti2].assignFeatureId(triangles[ti1].featureId);
                 }
             }
         }
@@ -453,8 +485,102 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
     return features;
 }
 
-int main()
+void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vector<u16> > connectedTrianglesList, vector<Triangle> triangles)
 {
+    char* filename = new char[255];
+
+    for (int i = 0; i < features.size(); i++)
+    {
+        sprintf(filename, "tmp_%d.obj", i);
+
+        FILE* f = fopen(filename, "w");
+
+        vector<u16> indices;
+        u32 indexCount = 0;
+
+        for (int t = 0; t < features[i].size(); t++)
+        {
+            Triangle tri = features[i][t];
+
+            fprintf(f, "v %f %f %f\n", tri.positions[0].X, tri.positions[0].Y, tri.positions[0].Z);
+            fprintf(f, "v %f %f %f\n", tri.positions[1].X, tri.positions[1].Y, tri.positions[1].Z);
+            fprintf(f, "v %f %f %f\n", tri.positions[2].X, tri.positions[2].Y, tri.positions[2].Z);
+
+            indices.push_back(indexCount);
+            indices.push_back(indexCount + 1);
+            indices.push_back(indexCount + 2);
+
+            indexCount += 3;
+        }
+
+        for (int t = 0; t < indices.size(); t += 3)
+        {
+            fprintf(f, "f %d// %d// %d//\n", indices[t], indices[t + 1], indices[t + 2]);
+        }
+
+        fclose(f);
+    }
+
+    /*bitset<triangles.size()> mappedAlready;
+
+    for (int i = 0; i < connectedTrianglesList.size(); i++)
+    {
+        if (!mappedAlready[i])
+        {
+            Triangle parentTriangle = triangles[i];
+
+            // map parentTriangle
+        }
+
+
+        for (int t = 0; t < ((vector<Triangle>) connectedTrianglesList[i]).size(); t++)
+        {
+            u16 neighbourIndex = ((vector<Triangle>) connectedTrianglesList[i])[t];
+
+            if (mappedAlready[neighbourIndex])
+                continue;
+
+            Triangle neighbourTriangle = triangles[neighbourIndex];
+
+            // map neighbourTriangle near parentTriangle
+        }
+    }*/
+}
+
+void drawFeaturesToFile(char* baseFilename, vector< vector<Triangle> > features)
+{
+    /*unsigned char background[] = { 242, 237, 177 },
+        triangleFill[] = { 153, 199, 182 },
+        triangleBorder[] = { 42, 3, 158 };
+
+    for (int i = 0; i < features.size(); i++)
+    {
+        CImg<unsigned char> image(baseFilename); //sprintf("%s_%d.jpg", baseFilename, i));
+
+        image.fill(background);
+
+        for (int t = 0; t < features[i].size(); t++)
+        {
+            Triangle tri = features[i][t];
+            vector2di a = tri.UVs[0], b = tri.UVs[1], c = tri.UVs[2];
+
+            image.draw_triangle(a.X, a.Y, b.X, b.Y, c.X, c.Y, triangleFill);
+            image.draw_line(a.X, a.Y, b.X, b.Y, triangleBorder);
+            image.draw_line(a.X, a.Y, c.X, c.Y, triangleBorder);
+            image.draw_line(b.X, b.Y, c.X, c.Y, triangleBorder);
+        }
+    }*/
+}
+
+int main(int argc, char** argv)
+{
+    if (argc < 3)
+    {
+        printf("Please, run %s <3D model file> <texture base filename>\n", argv[0]);
+
+        return 0;
+    }
+
     IrrlichtDevice *device =
             createDevice(video::EDT_BURNINGSVIDEO, dimension2d<u32>(1024, 768), 32,
                     false, false, true, 0);
@@ -468,13 +594,10 @@ int main()
     ISceneManager* smgr = device->getSceneManager();
     IGUIEnvironment* guienv = device->getGUIEnvironment();
 
-    guienv->addStaticText(L"Hello World! This is the Irrlicht Software renderer!",
-            rect<s32>(10,10,260,22), true);
-
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Biomech_Fiera.3DS");
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Sovereign_1.obj");
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
-    IAnimatedMesh* modelMesh = smgr->getMesh("./dwarf.x");
+    IAnimatedMesh* modelMesh = smgr->getMesh(argv[1]);
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/earth.x");
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/bun_zipper.ply");
 
@@ -491,14 +614,14 @@ int main()
 
     //smgr->addLightSceneNode(0, vector3df(0, 100, 0), SColorf(100.f, 100.f, 100.f));
 
-    if (node)
-    {
-        node->setMaterialFlag(EMF_LIGHTING, false);
-        node->setAnimationSpeed(0);
-        node->setMaterialTexture(0, driver->getTexture("dwarf.jpg"));
-        //node->setMaterialTexture( 0, driver->getTexture("../../media/Sovereign_1.jpg") );
-        //node->setScale(vector3df(0.f, 0.f, 0.f));
-    }
+    // if (node)
+    // {
+    //     node->setMaterialFlag(EMF_LIGHTING, false);
+    //     node->setAnimationSpeed(0);
+    //     node->setMaterialTexture(0, driver->getTexture("dwarf.jpg"));
+    //     //node->setMaterialTexture( 0, driver->getTexture("../../media/Sovereign_1.jpg") );
+    //     //node->setScale(vector3df(0.f, 0.f, 0.f));
+    // }
 
     node->setScale(vector3df(10.f, 10.f, 10.f));
 
@@ -516,41 +639,43 @@ int main()
     for (u16 i = 0; i < modelMesh->getMeshBufferCount(); i++)
         edgeCount += modelMesh->getMeshBuffer(i)->getIndexCount();
 
-    printf("Scars: %ld\nEdge count: %u\nFeature count: %lu\n", seams.size(), edgeCount, features.size());
+    printf("Seams: %ld\nEdge count: %u\nFeature count: %lu\n", seams.size(), edgeCount, features.size());
 
-    node->setVisible(false);
+    mapFeaturesOntoPlane(features);
 
-    while (device->run())
-    {
-        if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
-            continue;
+    // node->setVisible(false);
 
-        driver->beginScene(true, true, SColor(255,100,101,140));
+    // while (device->run())
+    // {
+    //     if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
+    //         continue;
 
-        smgr->drawAll();
-        guienv->drawAll();
+    //     driver->beginScene(true, true, SColor(255,100,101,140));
 
-        driver->setTransform(video::ETS_WORLD, matrix4::EM4CONST_IDENTITY);
+    //     smgr->drawAll();
+    //     guienv->drawAll();
 
-        /*for (u16 i = 0; i < seams.size(); i++)
-        {
-            driver->draw3DLine(seams[i]->pe1 * 1.005, seams[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
-        }*/
+    //     driver->setTransform(video::ETS_WORLD, matrix4::EM4CONST_IDENTITY);
 
-        for (u16 i = 0; i < features.size(); i++)
-        {
-            for (u16 t = 0; t < features[i].size(); t++)
-            {
-                Triangle tri = features[i][t];
+    //     /*for (u16 i = 0; i < seams.size(); i++)
+    //     {
+    //         driver->draw3DLine(seams[i]->pe1 * 1.005, seams[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
+    //     }*/
 
-                driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[1] * 1.005, SColor(55, 100, 255, 140));
-                driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
-                driver->draw3DLine(tri.positions[1] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
-            }
-        }
+    //     for (u16 i = 0; i < features.size(); i++)
+    //     {
+    //         for (u16 t = 0; t < features[i].size(); t++)
+    //         {
+    //             Triangle tri = features[i][t];
 
-        driver->endScene();
-    }
+    //             driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[1] * 1.005, SColor(55, 100, 255, 140));
+    //             driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
+    //             driver->draw3DLine(tri.positions[1] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
+    //         }
+    //     }
+
+    //     driver->endScene();
+    // }
 
     device->drop();
 
