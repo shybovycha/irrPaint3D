@@ -347,14 +347,11 @@ struct Triangle
 vector< vector<Triangle> > growFeatures(IMesh* mesh)
 {
     vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
-
     vector<HalfEdge*> paths = detectSeams(halfEdges);
 
     map< u16, vector<u16> > connectedTrianglesList;
 
-    u16 triangleIndex = 0;
     vector<Triangle> triangles;
-
     vector< vector<Triangle> > features;
 
     u16 meshBufferCount = mesh->getMeshBufferCount();
@@ -386,54 +383,33 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
 
             triangles.push_back(triangle);
         }
+    }
 
-        u16 T = triangles.size(), P = paths.size();
+    u16 T = triangles.size(), P = paths.size();
 
-        printf("Generated %d triangles\n", T);
+    printf("Generated %d triangles\n", T);
 
-        for (u16 t1 = 0; t1 < T; t1++)
+    for (u16 t1 = 0; t1 < T; t1++)
+    {
+        for (u16 t2 = 0; t2 < T; t2++)
         {
-            for (u16 t2 = 0; t2 < T; t2++)
+            if (t1 == t2)
+                continue;
+
+            vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
+
+            if (c.size() > 1)
             {
-                if (t1 == t2)
-                    continue;
+                ((vector<u16>) connectedTrianglesList[t1]).push_back(t2);
 
-                vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
+                int featureFound = 0;
 
-                if (c.size() > 1)
+                for (u16 j = 0; j < P; j++)
                 {
-                    ((vector<u16>) connectedTrianglesList[t1]).push_back(t2);
-
-                    int featureFound = 0;
-
-                    for (u16 j = 0; j < P; j++)
+                    if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
                     {
-                        if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
-                        {
-                            featureFound = 1;
+                        featureFound = 1;
 
-                            if (triangles[t1].featureId < 0)
-                            {
-                                vector<Triangle> f;
-                                f.push_back(triangles[t1]);
-                                features.push_back(f);
-                                triangles[t1].assignFeatureId(features.size() - 1);
-                            }
-
-                            if (triangles[t2].featureId < 0)
-                            {
-                                vector<Triangle> f;
-                                f.push_back(triangles[t2]);
-                                features.push_back(f);
-                                triangles[t2].assignFeatureId(features.size() - 1);
-                            }
-
-                            break;
-                        }
-                    }
-
-                    if (!featureFound)
-                    {
                         if (triangles[t1].featureId < 0)
                         {
                             vector<Triangle> f;
@@ -442,6 +418,31 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
                             triangles[t1].assignFeatureId(features.size() - 1);
                         }
 
+                        if (triangles[t2].featureId < 0)
+                        {
+                            vector<Triangle> f;
+                            f.push_back(triangles[t2]);
+                            features.push_back(f);
+                            triangles[t2].assignFeatureId(features.size() - 1);
+                        }
+
+                        break;
+                    }
+                }
+
+                if (!featureFound)
+                {
+                    if (triangles[t1].featureId < 0)
+                    {
+                        vector<Triangle> f;
+                        f.push_back(triangles[t1]);
+                        features.push_back(f);
+                        triangles[t1].assignFeatureId(features.size() - 1);
+                    }
+
+                    if (triangles[t2].featureId < 0)
+                    {
+                        features[triangles[t1].featureId].push_back(triangles[t2]);
                         triangles[t2].assignFeatureId(triangles[t1].featureId);
                     }
                 }
