@@ -1,3 +1,53 @@
+/***************
+
+The original LSCM algorithm for growing charts :
+
+-----------------------
+
+EdgeHeap : heap of directed edges (with associated face F(edge))
+    sorted by dist(F(edge)) (dist is distance to feature)
+
+mark all edges as "chart boundaries"
+track is_boundary(edge)
+
+track chart(face) , tells you which chart a face is in
+
+EdgeHeap contains all edge to consider growing a chart from
+start with EdgeHeap clear
+
+Seed charts :
+{
+    chart[i] = seed face
+    push edges of seed face to EdgeHeap
+}
+// each connected area must have at least one seed
+// each connected area that is not a disk must have at least *two* seeds
+
+// grow charts :
+while EdgeHeap not empty :
+{
+    edge = EdgeHeap.pop
+    // assert is_boundary(edge)
+    face = F(edge) // is the face to consider adding
+    prev = F(edge flipped) // is the face growing off of
+    // assert chart(prev) != none
+
+    if ( chart(face) = none )
+    {
+        add face to chart(prev)
+        set is_boundary(edge) = false
+        consider edges of "face" and "prev" ; any edge which is not connected to two other
+            is_boundary() edges, mark as not being is_boundary() either
+        push edges of face to EdgeHeap (if they are is_boundary() true)
+    }
+    else if ( chart(face) != chart(prev) )
+    {
+        // consider merging the charts
+
+    }
+}
+
+*******************/
 /*
 ====== LSCM ======
 
@@ -55,6 +105,10 @@ So, just calculate the right index for i (<latex>W_{j,i}</latex>, in the first f
 #include <irrlicht/irrlicht.h>
 #endif
 
+#include <vector>
+
+using std::vector;
+
 using namespace irr;
 
 using namespace core;
@@ -74,7 +128,7 @@ struct HalfEdge
     u32 v1, v2; // side vertices
     f32 w; // weight
     vector3df pe1, pe2, pv1, pv2;
-    
+
     HalfEdge(u32 _e1, u32 _e2, u32 _v1, u32 _v2, f32 _w = 0.f)
     {
         e1 = _e1;
@@ -95,37 +149,37 @@ struct HalfEdge
 
 vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3DVertex* vertices, f32 threshold = 0.001f)
 {
-	s16 V[] = { -1, -1 }, cnt = 0;
+    s16 V[] = { -1, -1 }, cnt = 0;
 
     for (u16 v = 0; v < indicesCnt; v += 3)
     {
-		u32 a = indices[v], b = indices[v + 1], c = indices[v + 2];
+        u32 a = indices[v], b = indices[v + 1], c = indices[v + 2];
 
-		/*if (a == e1 && c == e2)
-			V[cnt++] = b; else
-		if (a == e1 && b == e2)
-			V[cnt++] = c; else
-		if (a == e2 && b == e1)
-			V[cnt++] = c; else
-		if (b == e1 && c == e2)
-			V[cnt++] = a; else
-		if (b == e2 && c == e1)
-			V[cnt++] = a; else
-		if (a == e2 && c == e1)
-			V[cnt++] = b; else*/
+        /*if (a == e1 && c == e2)
+            V[cnt++] = b; else
+        if (a == e1 && b == e2)
+            V[cnt++] = c; else
+        if (a == e2 && b == e1)
+            V[cnt++] = c; else
+        if (b == e1 && c == e2)
+            V[cnt++] = a; else
+        if (b == e2 && c == e1)
+            V[cnt++] = a; else
+        if (a == e2 && c == e1)
+            V[cnt++] = b; else*/
 
-		if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
-			V[cnt++] = b; else
-		if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e2].Pos).getLength() < threshold)
-			V[cnt++] = c; else
-		if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e1].Pos).getLength() < threshold)
-			V[cnt++] = c; else
-		if ((vertices[b].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
-			V[cnt++] = a; else
-		if ((vertices[b].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
-			V[cnt++] = a; else
-		if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
-			V[cnt++] = b;
+        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
+            V[cnt++] = b; else
+        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e2].Pos).getLength() < threshold)
+            V[cnt++] = c; else
+        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e1].Pos).getLength() < threshold)
+            V[cnt++] = c; else
+        if ((vertices[b].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
+            V[cnt++] = a; else
+        if ((vertices[b].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
+            V[cnt++] = a; else
+        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
+            V[cnt++] = b;
 
         if (cnt > 1)
             break;
@@ -136,12 +190,12 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3
 
 HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex* vertices)
 {
-	vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount, vertices);
+    vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount, vertices);
 
     if (coVerts.Y < 0)
         coVerts.Y = coVerts.X; else
-	if (coVerts.X < 0)
-		return 0;
+    if (coVerts.X < 0)
+        return 0;
 
     u32 v1 = coVerts.X, v2 = coVerts.Y;
 
@@ -153,12 +207,12 @@ HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex
 
     he->setPositions(vertices[e1].Pos, vertices[e2].Pos, vertices[v1].Pos, vertices[v2].Pos);
 
-	return he;
+    return he;
 }
 
-array<HalfEdge*> fillHalfEdges(IMesh* mesh)
+vector<HalfEdge*> fillHalfEdges(IMesh* mesh)
 {
-    array<HalfEdge*> halfEdges;
+    vector<HalfEdge*> halfEdges;
     u16 meshBufferCount = mesh->getMeshBufferCount();
 
     for (u16 i = 0; i < meshBufferCount; i++)
@@ -178,7 +232,7 @@ array<HalfEdge*> fillHalfEdges(IMesh* mesh)
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he)
-                    return 1;
+                    return vector<HalfEdge*>();
 
                 halfEdges.push_back(he);
             }
@@ -189,7 +243,7 @@ array<HalfEdge*> fillHalfEdges(IMesh* mesh)
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he)
-                    return 1;
+                    return vector<HalfEdge*>();
 
                 halfEdges.push_back(he);
             }
@@ -200,7 +254,7 @@ array<HalfEdge*> fillHalfEdges(IMesh* mesh)
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he)
-                    return 1;
+                    return vector<HalfEdge*>();
 
                 halfEdges.push_back(he);
             }
@@ -210,10 +264,11 @@ array<HalfEdge*> fillHalfEdges(IMesh* mesh)
     return halfEdges;
 }
 
-array<HalfEdge*> detectAndGrowFeatures(array<HalfEdge*> halfEdges, f32 Bl, f32 Bu)
+vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 Bl = 0.92f)
 {
-    array<HalfEdge*> paths;
+    vector<HalfEdge*> paths;
     HalfEdge* selected = 0;
+    vector< vector<S3DVertex*> > features;
 
     for (u32 i = 0; i < halfEdges.size(); i++)
     {
@@ -238,6 +293,165 @@ array<HalfEdge*> detectAndGrowFeatures(array<HalfEdge*> halfEdges, f32 Bl, f32 B
     return paths;
 }
 
+struct Triangle
+{
+    vector<u32> vertices;
+    vector<vector3df> positions;
+    s16 featureId;
+    u16 meshBufferId;
+
+    Triangle(u32 a, u32 b, u32 c, u16 meshBuffer = 0, u16 feature = -1)
+    {
+        vertices = vector<u32>();
+        vertices.push_back(a);
+        vertices.push_back(b);
+        vertices.push_back(c);
+        featureId = feature;
+        meshBufferId = meshBuffer;
+    }
+
+    void setPositions(vector3df a, vector3df b, vector3df c)
+    {
+        positions.push_back(a);
+        positions.push_back(b);
+        positions.push_back(c);
+    }
+
+    vector<u32> commonVertices(Triangle& tri)
+    {
+        vector<u32> res;
+
+        for (int i = 0; i < 3; i++)
+        {
+            for (int t = 0; t < 3; t++)
+            {
+                if (vertices[i] == tri.vertices[t])
+                {
+                    res.push_back(vertices[i]);
+                }
+            }
+        }
+
+        return res;
+    }
+
+    void assignFeatureId(s16 f)
+    {
+        if (featureId < 0)
+        {
+            featureId = f;
+        }
+    }
+};
+
+vector< vector<Triangle> > growFeatures(IMesh* mesh)
+{
+    vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
+
+    vector<HalfEdge*> paths = detectSeams(halfEdges);
+
+    map< u16, vector<u16> > connectedTrianglesList;
+
+    u16 triangleIndex = 0;
+    vector<Triangle> triangles;
+
+    vector< vector<Triangle> > features;
+
+    u16 meshBufferCount = mesh->getMeshBufferCount();
+
+    for (u16 i = 0; i < meshBufferCount; i++)
+    {
+        IMeshBuffer* mb = mesh->getMeshBuffer(i);
+
+        u16* indices = mb->getIndices();
+        u32 indexCount = mb->getIndexCount();
+
+        S3DVertex* vertices = (S3DVertex*) mb->getVertices();
+
+        for (u32 t = 0; t < indexCount; t += 3)
+        {
+            // building connected triangles list with just one enhancement
+            // if two triangles do have common edge and that edge belongs to seams
+            // then each triangle is assigned new feature ID.
+            // NOTE: if triangle has feature ID assigned already - it does not get new one. ever.
+            S3DVertex a = vertices[indices[t]], b = vertices[indices[t + 1]], c = vertices[indices[t + 2]];
+
+            Triangle triangle(indices[t], indices[t + 1], indices[t + 2], i);
+
+            triangle.setPositions(a.Pos, b.Pos, c.Pos);
+
+            u16 triangleIndex = triangles.size();
+
+            connectedTrianglesList[triangleIndex] = vector<u16>();
+
+            triangles.push_back(triangle);
+        }
+
+        u16 T = triangles.size(), P = paths.size();
+
+        printf("Generated %d triangles\n", T);
+
+        for (u16 t1 = 0; t1 < T; t1++)
+        {
+            for (u16 t2 = 0; t2 < T; t2++)
+            {
+                if (t1 == t2)
+                    continue;
+
+                vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
+
+                if (c.size() > 1)
+                {
+                    ((vector<u16>) connectedTrianglesList[t1]).push_back(t2);
+
+                    int featureFound = 0;
+
+                    for (u16 j = 0; j < P; j++)
+                    {
+                        if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
+                        {
+                            featureFound = 1;
+
+                            if (triangles[t1].featureId < 0)
+                            {
+                                vector<Triangle> f;
+                                f.push_back(triangles[t1]);
+                                features.push_back(f);
+                                triangles[t1].assignFeatureId(features.size() - 1);
+                            }
+
+                            if (triangles[t2].featureId < 0)
+                            {
+                                vector<Triangle> f;
+                                f.push_back(triangles[t2]);
+                                features.push_back(f);
+                                triangles[t2].assignFeatureId(features.size() - 1);
+                            }
+
+                            break;
+                        }
+                    }
+
+                    if (!featureFound)
+                    {
+                        if (triangles[t1].featureId < 0)
+                        {
+                            vector<Triangle> f;
+                            f.push_back(triangles[t1]);
+                            features.push_back(f);
+                            triangles[t1].assignFeatureId(features.size() - 1);
+                        }
+
+                        triangles[t2].assignFeatureId(triangles[t1].featureId);
+                    }
+                }
+            }
+        }
+    }
+
+    return features;
+}
+
 int main()
 {
     IrrlichtDevice *device =
@@ -257,13 +471,14 @@ int main()
             rect<s32>(10,10,260,22), true);
 
     //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Biomech_Fiera.3DS");
-	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Sovereign_1.obj");
-	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
-	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/earth.x");
-	//IAnimatedMesh* modelMesh = smgr->getMesh("../../media/bun_zipper.ply");
+    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Sovereign_1.obj");
+    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
+    IAnimatedMesh* modelMesh = smgr->getMesh("./dwarf.x");
+    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/earth.x");
+    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/bun_zipper.ply");
 
-	IAnimatedMesh* modelMesh = smgr->getMesh("../../media/sydney.md2");
-	
+    //IAnimatedMesh* modelMesh = smgr->getMesh("./sydney.md2");
+
     if (!modelMesh)
     {
         device->drop();
@@ -273,52 +488,64 @@ int main()
 
     IAnimatedMeshSceneNode* node = smgr->addAnimatedMeshSceneNode(modelMesh);
 
-	//smgr->addLightSceneNode(0, vector3df(0, 100, 0), SColorf(100.f, 100.f, 100.f));
+    //smgr->addLightSceneNode(0, vector3df(0, 100, 0), SColorf(100.f, 100.f, 100.f));
 
     if (node)
     {
         node->setMaterialFlag(EMF_LIGHTING, false);
         node->setAnimationSpeed(0);
+        node->setMaterialTexture(0, driver->getTexture("dwarf.jpg"));
         //node->setMaterialTexture( 0, driver->getTexture("../../media/Sovereign_1.jpg") );
-		//node->setScale(vector3df(0.f, 0.f, 0.f));
+        //node->setScale(vector3df(0.f, 0.f, 0.f));
     }
 
-	//node->setScale(vector3df(10.f, 10.f, 10.f));
+    node->setScale(vector3df(10.f, 10.f, 10.f));
 
-	IMesh* mesh = modelMesh->getMesh(0);
-    array<HalfEdge*> halfEdges = fillHalfEdges(mesh);
+    IMesh* mesh = modelMesh->getMesh(0);
+    vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
 
-    f32 Bu = 0.995f, Bl = 0.92f;
-
-    array<HalfEdge*> paths = detectAndGrowFeatures(halfEdges, Bl, Bu);
+    vector<HalfEdge*> seams = detectSeams(halfEdges);
+    vector< vector<Triangle> > features = growFeatures(mesh);
 
     smgr->addCameraSceneNodeFPS(0, 50.f, 0.0125f);
-	smgr->getActiveCamera()->setNearValue(0.01);
+    smgr->getActiveCamera()->setNearValue(0.01);
 
-	u32 edgeCount = 0;
+    u32 edgeCount = 0;
 
-	for (u16 i = 0; i < modelMesh->getMeshBufferCount(); i++)
-		edgeCount += modelMesh->getMeshBuffer(i)->getIndexCount();
+    for (u16 i = 0; i < modelMesh->getMeshBufferCount(); i++)
+        edgeCount += modelMesh->getMeshBuffer(i)->getIndexCount();
 
-	printf("Scars: %ld\nEdge count: %ld\n", paths.size(), edgeCount);
+    printf("Scars: %ld\nEdge count: %u\nFeature count: %lu\n", seams.size(), edgeCount, features.size());
 
-	node->setVisible(false);
+    node->setVisible(false);
 
-	while (device->run())
+    while (device->run())
     {
-		if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
-			continue;
+        if (!device->isWindowActive() || !device->isWindowFocused() || device->isWindowMinimized())
+            continue;
 
-		driver->beginScene(true, true, SColor(255,100,101,140));
+        driver->beginScene(true, true, SColor(255,100,101,140));
 
-		smgr->drawAll();
+        smgr->drawAll();
         guienv->drawAll();
 
-		driver->setTransform(video::ETS_WORLD, matrix4::EM4CONST_IDENTITY);
+        driver->setTransform(video::ETS_WORLD, matrix4::EM4CONST_IDENTITY);
 
-		for (u16 i = 0; i < paths.size(); i++)
+        /*for (u16 i = 0; i < seams.size(); i++)
         {
-            driver->draw3DLine(paths[i]->pe1 * 1.005, paths[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
+            driver->draw3DLine(seams[i]->pe1 * 1.005, seams[i]->pe2 * 1.005, SColor(55, 100, 255, 140));
+        }*/
+
+        for (u16 i = 0; i < features.size(); i++)
+        {
+            for (u16 t = 0; t < features[i].size(); t++)
+            {
+                Triangle tri = features[i][t];
+
+                driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[1] * 1.005, SColor(55, 100, 255, 140));
+                driver->draw3DLine(tri.positions[0] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
+                driver->draw3DLine(tri.positions[1] * 1.005, tri.positions[2] * 1.005, SColor(55, 100, 255, 140));
+            }
         }
 
         driver->endScene();
@@ -328,53 +555,3 @@ int main()
 
     return 0;
 }
-/***************
-
-The original LSCM algorithm for growing charts :
-
------------------------
-
-EdgeHeap : heap of directed edges (with associated face F(edge))
-    sorted by dist(F(edge)) (dist is distance to feature)
-
-mark all edges as "chart boundaries"
-track is_boundary(edge)
-
-track chart(face) , tells you which chart a face is in
-
-EdgeHeap contains all edge to consider growing a chart from
-start with EdgeHeap clear
-
-Seed charts :
-{
-    chart[i] = seed face
-    push edges of seed face to EdgeHeap
-}
-// each connected area must have at least one seed
-// each connected area that is not a disk must have at least *two* seeds
-
-// grow charts :
-while EdgeHeap not empty :
-{
-    edge = EdgeHeap.pop
-    // assert is_boundary(edge)
-    face = F(edge) // is the face to consider adding
-    prev = F(edge flipped) // is the face growing off of
-    // assert chart(prev) != none
-
-    if ( chart(face) = none )
-    {
-        add face to chart(prev)
-        set is_boundary(edge) = false
-        consider edges of "face" and "prev" ; any edge which is not connected to two other
-            is_boundary() edges, mark as not being is_boundary() either
-        push edges of face to EdgeHeap (if they are is_boundary() true)
-    }
-    else if ( chart(face) != chart(prev) )
-    {
-        // consider merging the charts
-
-    }
-}
-
-*******************/
