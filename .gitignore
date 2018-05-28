@@ -6,3 +6,7 @@ nbproject
 media
 *.creator*
 *.user*
+*.config
+*.files
+*.includes
+irrPaint3d

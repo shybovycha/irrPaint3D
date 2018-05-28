@@ -60,7 +60,8 @@ First of all, here's the algorithm:
 
 More detailed algorithm description:
 
-===== split entire model to charts =====
+===== split entire model into charts =====
+
     * detect features defining chart boundaries
     * grow features (thin them)
     * expand charts (create them)
@@ -99,11 +100,7 @@ So, just calculate the right index for i (<latex>W_{j,i}</latex>, in the first f
 <latex>U_{p}</latex> is a vector of <latex>u + iv</latex> complex numbers determining UV-coordinates for //pinned// vertices (sub-index of //p//)
 */
 
-#ifdef _WIN32
-#include <irrlicht.h>
-#else
 #include <irrlicht/irrlicht.h>
-#endif
 
 #include <vector>
 #include "CImg.h"
@@ -120,43 +117,37 @@ using namespace video;
 using namespace io;
 using namespace gui;
 
-#ifdef _IRR_WINDOWS_
-#pragma comment(lib, "Irrlicht.lib")
-//#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
-#endif
+class HalfEdge {
+public:
+    HalfEdge(u32 e1, u32 e2, u32 v1, u32 v2, f32 w = 0.f) {
+        this->e1 = e1;
+        this->e2 = e2;
+        this->v1 = v1;
+        this->v2 = v2;
+        this->w = w;
+    }
 
-struct HalfEdge
-{
+    void setPositions(vector3df e1, vector3df e2, vector3df v1, vector3df v2) {
+        this->pe1 = e1;
+        this->pe2 = e2;
+        this->pv1 = v1;
+        this->pv2 = v2;
+    }
+
+public:
     u32 e1, e2; // edge vertices
     u32 v1, v2; // side vertices
     f32 w; // weight
     vector3df pe1, pe2, pv1, pv2;
-
-    HalfEdge(u32 _e1, u32 _e2, u32 _v1, u32 _v2, f32 _w = 0.f)
-    {
-        e1 = _e1;
-        e2 = _e2;
-        v1 = _v1;
-        v2 = _v2;
-        w = _w;
-    }
-
-    void setPositions(vector3df _e1, vector3df _e2, vector3df _v1, vector3df _v2)
-    {
-        pe1 = _e1;
-        pe2 = _e2;
-        pv1 = _v1;
-        pv2 = _v2;
-    }
 };
 
-vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3DVertex* vertices, f32 threshold = 0.001f)
-{
+vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3DVertex* vertices, f32 threshold = 0.001f) {
     s16 V[] = { -1, -1 }, cnt = 0;
 
-    for (u16 v = 0; v < indicesCnt; v += 3)
-    {
-        u32 a = indices[v], b = indices[v + 1], c = indices[v + 2];
+    for (u16 v = 0; v < indicesCnt; v += 3) {
+        u32 a = indices[v];
+        u32 b = indices[v + 1];
+        u32 c = indices[v + 2];
 
         /*if (a == e1 && c == e2)
             V[cnt++] = b; else
@@ -171,34 +162,54 @@ vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3
         if (a == e2 && c == e1)
             V[cnt++] = b; else*/
 
-        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
-            V[cnt++] = b; else
-        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e2].Pos).getLength() < threshold)
-            V[cnt++] = c; else
-        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[b].Pos - vertices[e1].Pos).getLength() < threshold)
-            V[cnt++] = c; else
-        if ((vertices[b].Pos - vertices[e1].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold)
-            V[cnt++] = a; else
-        if ((vertices[b].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
-            V[cnt++] = a; else
-        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold && (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold)
-            V[cnt++] = b;
+        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold &&
+            (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold) {
 
-        if (cnt > 1)
+            V[cnt++] = b;
+        } else
+        if ((vertices[a].Pos - vertices[e1].Pos).getLength() < threshold &&
+            (vertices[b].Pos - vertices[e2].Pos).getLength() < threshold) {
+
+            V[cnt++] = c;
+        } else
+        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold &&
+            (vertices[b].Pos - vertices[e1].Pos).getLength() < threshold) {
+
+            V[cnt++] = c;
+        } else
+        if ((vertices[b].Pos - vertices[e1].Pos).getLength() < threshold &&
+            (vertices[c].Pos - vertices[e2].Pos).getLength() < threshold) {
+
+            V[cnt++] = a;
+        } else
+        if ((vertices[b].Pos - vertices[e2].Pos).getLength() < threshold &&
+            (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold) {
+
+            V[cnt++] = a;
+        } else
+        if ((vertices[a].Pos - vertices[e2].Pos).getLength() < threshold &&
+            (vertices[c].Pos - vertices[e1].Pos).getLength() < threshold) {
+
+            V[cnt++] = b;
+        }
+
+        if (cnt > 1) {
             break;
+        }
     }
 
     return vector2di(V[0], V[1]);
 }
 
-HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex* vertices)
-{
+HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex* vertices) {
     vector2di coVerts = findCoVerticesForEdge(e1, e2, indices, indexCount, vertices);
 
-    if (coVerts.Y < 0)
-        coVerts.Y = coVerts.X; else
-    if (coVerts.X < 0)
-        return 0;
+    if (coVerts.Y < 0) {
+        coVerts.Y = coVerts.X;
+    } else
+    if (coVerts.X < 0) {
+        return NULL;
+    }
 
     u32 v1 = coVerts.X, v2 = coVerts.Y;
 
@@ -213,13 +224,11 @@ HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex
     return he;
 }
 
-vector<HalfEdge*> fillHalfEdges(IMesh* mesh)
-{
+vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
     vector<HalfEdge*> halfEdges;
     u16 meshBufferCount = mesh->getMeshBufferCount();
 
-    for (u16 i = 0; i < meshBufferCount; i++)
-    {
+    for (u16 i = 0; i < meshBufferCount; ++i) {
         IMeshBuffer* mb = mesh->getMeshBuffer(i);
 
         u16* indices = mb->getIndices();
@@ -227,37 +236,42 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh)
 
         S3DVertex* vertices = (S3DVertex*) mb->getVertices();
 
-        for (u32 e = 0; e < indexCount; e += 3)
-        {
+        for (u32 e = 0; e < indexCount; e += 3) {
             {
-                u32 e1 = indices[e], e2 = indices[e + 1];
+                u32 e1 = indices[e];
+                u32 e2 = indices[e + 1];
 
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (!he)
+                if (!he) {
                     return vector<HalfEdge*>();
+                }
 
                 halfEdges.push_back(he);
             }
 
             {
-                u32 e1 = indices[e + 1], e2 = indices[e + 2];
+                u32 e1 = indices[e + 1];
+                u32 e2 = indices[e + 2];
 
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (!he)
+                if (!he) {
                     return vector<HalfEdge*>();
+                }
 
                 halfEdges.push_back(he);
             }
 
             {
-                u32 e1 = indices[e + 2], e2 = indices[e];
+                u32 e1 = indices[e + 2];
+                u32 e2 = indices[e];
 
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
-                if (!he)
+                if (!he) {
                     return vector<HalfEdge*>();
+                }
 
                 halfEdges.push_back(he);
             }
@@ -267,26 +281,21 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh)
     return halfEdges;
 }
 
-vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 Bl = 0.92f)
-{
+vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 Bl = 0.92f) {
     vector<HalfEdge*> paths;
     HalfEdge* selected = 0;
     vector< vector<S3DVertex*> > features;
 
-    for (u32 i = 0; i < halfEdges.size(); i++)
-    {
+    for (u32 i = 0; i < halfEdges.size(); ++i) {
         HalfEdge* he = halfEdges[i];
 
-        if (he->w >= Bu)
-        {
+        if (he->w >= Bu) {
             selected = he;
             paths.push_back(he);
         }
 
-        if (he->w >= Bl)
-        {
-            if (selected && ((selected->e1 == he->e1) || (selected->e1 == he->e2) || (selected->e2 == he->e1) || (selected->e2 == he->e2)))
-            {
+        if (he->w >= Bl) {
+            if (selected && ((selected->e1 == he->e1) || (selected->e1 == he->e2) || (selected->e2 == he->e1) || (selected->e2 == he->e2))) {
                 selected = he;
                 paths.push_back(he);
             }
@@ -296,17 +305,9 @@ vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 
     return paths;
 }
 
-struct Triangle
-{
-    vector<u32> vertices;
-    vector<vector3df> positions;
-    vector<vector2di> UVs;
-
-    s16 featureId;
-    u16 meshBufferId;
-
-    Triangle(u32 a, u32 b, u32 c, u16 meshBuffer = 0, u16 feature = -1)
-    {
+class Triangle {
+public:
+    Triangle(u32 a, u32 b, u32 c, u16 meshBuffer = 0, u16 feature = -1) {
         vertices = vector<u32>();
         vertices.push_back(a);
         vertices.push_back(b);
@@ -315,23 +316,18 @@ struct Triangle
         meshBufferId = meshBuffer;
     }
 
-    void setPositions(vector3df a, vector3df b, vector3df c)
-    {
+    void setPositions(vector3df a, vector3df b, vector3df c) {
         positions.push_back(a);
         positions.push_back(b);
         positions.push_back(c);
     }
 
-    vector<u32> commonVertices(Triangle& tri)
-    {
+    vector<u32> commonVertices(Triangle& tri) {
         vector<u32> res;
 
-        for (int i = 0; i < 3; i++)
-        {
-            for (int t = 0; t < 3; t++)
-            {
-                if (vertices[i] == tri.vertices[t])
-                {
+        for (int i = 0; i < 3; i++) {
+            for (int t = 0; t < 3; t++) {
+                if (vertices[i] == tri.vertices[t]) {
                     res.push_back(vertices[i]);
                 }
             }
@@ -340,10 +336,8 @@ struct Triangle
         return res;
     }
 
-    void assignFeatureId(s16 f)
-    {
-        if (featureId < 0)
-        {
+    void assignFeatureId(s16 f) {
+        if (featureId < 0) {
             featureId = f;
         }
     }
@@ -364,10 +358,17 @@ struct Triangle
     {
 
     }*/
+
+public:
+    vector<u32> vertices;
+    vector<vector3df> positions;
+    vector<vector2di> UVs;
+
+    s16 featureId;
+    u16 meshBufferId;
 };
 
-vector< vector<Triangle> > growFeatures(IMesh* mesh)
-{
+vector< vector<Triangle> > growFeatures(IMesh* mesh) {
     vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
     vector<HalfEdge*> paths = detectSeams(halfEdges);
 
@@ -378,8 +379,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
 
     u16 meshBufferCount = mesh->getMeshBufferCount();
 
-    for (u16 i = 0; i < meshBufferCount; i++)
-    {
+    for (u16 i = 0; i < meshBufferCount; ++i) {
         IMeshBuffer* mb = mesh->getMeshBuffer(i);
 
         u16* indices = mb->getIndices();
@@ -387,8 +387,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
 
         S3DVertex* vertices = (S3DVertex*) mb->getVertices();
 
-        for (u32 t = 0; t < indexCount; t += 3)
-        {
+        for (u32 t = 0; t < indexCount; t += 3) {
             // building connected triangles list with just one enhancement
             // if two triangles do have common edge and that edge belongs to seams
             // then each triangle is assigned new feature ID.
@@ -407,52 +406,47 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
         }
     }
 
-    u16 T = triangles.size(), P = paths.size();
+    u16 T = triangles.size();
+    u16 P = paths.size();
 
     printf("Generated %d triangles\n", T);
 
-    for (u16 t1 = 0; t1 < T; t1++)
-    {
-        for (u16 t2 = 0; t2 < T; t2++)
-        {
-            if (t1 == t2)
+    for (u16 t1 = 0; t1 < T; ++t1) {
+        for (u16 t2 = 0; t2 < T; ++t2) {
+            if (t1 == t2) {
                 continue;
+            }
 
             vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
 
-            if (c.size() > 1)
+            if (c.size() > 1) {
                 connectedTrianglesList[t1].push_back(t2);
+            }
         }
     }
 
     // printf("Connected list size: %d\n", connectedTrianglesList.size());
 
-    for (u16 t1 = 0; t1 < connectedTrianglesList.size(); t1++)
-    {
-        for (u16 t2 = 0; t2 < connectedTrianglesList[t1].size(); t2++)
-        {
+    for (u16 t1 = 0; t1 < connectedTrianglesList.size(); ++t1) {
+        for (u16 t2 = 0; t2 < connectedTrianglesList[t1].size(); ++t2) {
             u16 ti1 = t1, ti2 = connectedTrianglesList[t1][t2];
 
             vector<u32> c = triangles[ti1].commonVertices(triangles[ti2]);
 
             int featureFound = 0;
 
-            for (u16 j = 0; j < P; j++)
-            {
-                if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2])
-                {
+            for (u16 j = 0; j < P; ++j) {
+                if (paths[j]->e1 == c[0] || paths[j]->e2 == c[0] || paths[j]->e1 == c[1] || paths[j]->e2 == c[2]) {
                     featureFound = 1;
 
-                    if (triangles[ti1].featureId < 0)
-                    {
+                    if (triangles[ti1].featureId < 0) {
                         vector<Triangle> f;
                         f.push_back(triangles[ti1]);
                         features.push_back(f);
                         triangles[ti1].assignFeatureId(features.size() - 1);
                     }
 
-                    if (triangles[ti2].featureId < 0)
-                    {
+                    if (triangles[ti2].featureId < 0) {
                         vector<Triangle> f;
                         f.push_back(triangles[ti2]);
                         features.push_back(f);
@@ -463,21 +457,20 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh)
                 }
             }
 
-            if (!featureFound)
-            {
-                if (triangles[ti1].featureId < 0)
-                {
-                    vector<Triangle> f;
-                    f.push_back(triangles[ti1]);
-                    features.push_back(f);
-                    triangles[ti1].assignFeatureId(features.size() - 1);
-                }
+            if (featureFound) {
+                continue;
+            }
 
-                if (triangles[ti2].featureId < 0)
-                {
-                    features[triangles[ti1].featureId].push_back(triangles[ti2]);
-                    triangles[ti2].assignFeatureId(triangles[ti1].featureId);
-                }
+            if (triangles[ti1].featureId < 0) {
+                vector<Triangle> f;
+                f.push_back(triangles[ti1]);
+                features.push_back(f);
+                triangles[ti1].assignFeatureId(features.size() - 1);
+            }
+
+            if (triangles[ti2].featureId < 0) {
+                features[triangles[ti1].featureId].push_back(triangles[ti2]);
+                triangles[ti2].assignFeatureId(triangles[ti1].featureId);
             }
         }
     }
@@ -489,8 +482,7 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
 {
     char* filename = new char[255];
 
-    for (int i = 0; i < features.size(); i++)
-    {
+    for (int i = 0; i < features.size(); ++i) {
         sprintf(filename, "tmp_%d.obj", i);
 
         FILE* f = fopen(filename, "w");
@@ -498,8 +490,7 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
         vector<u16> indices;
         u32 indexCount = 0;
 
-        for (int t = 0; t < features[i].size(); t++)
-        {
+        for (int t = 0; t < features[i].size(); ++t) {
             Triangle tri = features[i][t];
 
             fprintf(f, "v %f %f %f\n", tri.positions[0].X, tri.positions[0].Y, tri.positions[0].Z);
@@ -513,8 +504,7 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
             indexCount += 3;
         }
 
-        for (int t = 0; t < indices.size(); t += 3)
-        {
+        for (int t = 0; t < indices.size(); t += 3) {
             fprintf(f, "f %d// %d// %d//\n", indices[t], indices[t + 1], indices[t + 2]);
         }
 
@@ -547,8 +537,7 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
     }*/
 }
 
-void drawFeaturesToFile(char* baseFilename, vector< vector<Triangle> > features)
-{
+void drawFeaturesToFile(char* baseFilename, vector< vector<Triangle> > features) {
     /*unsigned char background[] = { 242, 237, 177 },
         triangleFill[] = { 153, 199, 182 },
         triangleBorder[] = { 42, 3, 158 };
@@ -572,10 +561,8 @@ void drawFeaturesToFile(char* baseFilename, vector< vector<Triangle> > features)
     }*/
 }
 
-int main(int argc, char** argv)
-{
-    if (argc < 3)
-    {
+int main(int argc, char** argv) {
+    if (argc < 3) {
         printf("Please, run %s <3D model file> <texture base filename>\n", argv[0]);
 
         return 0;
@@ -603,8 +590,7 @@ int main(int argc, char** argv)
 
     //IAnimatedMesh* modelMesh = smgr->getMesh("./sydney.md2");
 
-    if (!modelMesh)
-    {
+    if (!modelMesh) {
         device->drop();
 
         return 1;
@@ -636,8 +622,9 @@ int main(int argc, char** argv)
 
     u32 edgeCount = 0;
 
-    for (u16 i = 0; i < modelMesh->getMeshBufferCount(); i++)
+    for (u16 i = 0; i < modelMesh->getMeshBufferCount(); ++i) {
         edgeCount += modelMesh->getMeshBuffer(i)->getIndexCount();
+    }
 
     printf("Seams: %ld\nEdge count: %u\nFeature count: %lu\n", seams.size(), edgeCount, features.size());
 
