@@ -103,9 +103,6 @@ So, just calculate the right index for i (<latex>W_{j,i}</latex>, in the first f
 #include <irrlicht/irrlicht.h>
 
 #include <vector>
-#include "CImg.h"
-
-using namespace cimg_library;
 
 using std::vector;
 
@@ -141,8 +138,55 @@ public:
     vector3df pe1, pe2, pv1, pv2;
 };
 
+class Triangle {
+public:
+    Triangle(u32 a, u32 b, u32 c, u16 meshBuffer = 0, u16 feature = -1) {
+        vertices = std::vector<u32>();
+        vertices.push_back(a);
+        vertices.push_back(b);
+        vertices.push_back(c);
+        featureId = feature;
+        meshBufferId = meshBuffer;
+    }
+
+    void setPositions(vector3df a, vector3df b, vector3df c) {
+        positions.push_back(a);
+        positions.push_back(b);
+        positions.push_back(c);
+    }
+
+    std::vector<u32> commonVertices(Triangle& tri) {
+        std::vector<u32> res;
+
+        for (int i = 0; i < 3; i++) {
+            for (int t = 0; t < 3; t++) {
+                if (vertices[i] == tri.vertices[t]) {
+                    res.push_back(vertices[i]);
+                }
+            }
+        }
+
+        return res;
+    }
+
+    void assignFeatureId(s16 f) {
+        if (featureId < 0) {
+            featureId = f;
+        }
+    }
+
+public:
+    std::vector<u32> vertices;
+    std::vector<vector3df> positions;
+    std::vector<vector2di> UVs;
+
+    s16 featureId;
+    u16 meshBufferId;
+};
+
 vector2di findCoVerticesForEdge(u16 e1, u16 e2, u16* indices, u16 indicesCnt, S3DVertex* vertices, f32 threshold = 0.001f) {
-    s16 V[] = { -1, -1 }, cnt = 0;
+    s16 V[] = { -1, -1 };
+    s16 cnt = 0;
 
     for (u16 v = 0; v < indicesCnt; v += 3) {
         u32 a = indices[v];
@@ -206,15 +250,21 @@ HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex
 
     if (coVerts.Y < 0) {
         coVerts.Y = coVerts.X;
-    } else
-    if (coVerts.X < 0) {
+    } else if (coVerts.X < 0) {
         return NULL;
     }
 
-    u32 v1 = coVerts.X, v2 = coVerts.Y;
+    u32 v1 = coVerts.X;
+    u32 v2 = coVerts.Y;
 
-    vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos), a2 = (vertices[v2].Pos - vertices[e1].Pos), edge = (vertices[e2].Pos - vertices[e1].Pos);
-    vector3df n1 = a1.crossProduct(edge), n2 = a2.crossProduct(edge);
+    vector3df a1 = (vertices[v1].Pos - vertices[e1].Pos);
+    vector3df a2 = (vertices[v2].Pos - vertices[e1].Pos);
+
+    vector3df edge = (vertices[e2].Pos - vertices[e1].Pos);
+
+    vector3df n1 = a1.crossProduct(edge);
+    vector3ds n2 = a2.crossProduct(edge);
+
     f32 w = n1.dotProduct(n2) / (n1.getLength() * n2.getLength());
 
     HalfEdge* he = new HalfEdge(indices[e1], indices[e2], v1, v2, w);
@@ -224,8 +274,9 @@ HalfEdge* createHaldEdge(u32 e1, u32 e2, u16* indices, u32 indexCount, S3DVertex
     return he;
 }
 
-vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
-    vector<HalfEdge*> halfEdges;
+std::vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
+    std::vector<HalfEdge*> halfEdges;
+
     u16 meshBufferCount = mesh->getMeshBufferCount();
 
     for (u16 i = 0; i < meshBufferCount; ++i) {
@@ -244,7 +295,7 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he) {
-                    return vector<HalfEdge*>();
+                    return std::vector<HalfEdge*>();
                 }
 
                 halfEdges.push_back(he);
@@ -257,7 +308,7 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he) {
-                    return vector<HalfEdge*>();
+                    return std::vector<HalfEdge*>();
                 }
 
                 halfEdges.push_back(he);
@@ -270,7 +321,7 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
                 HalfEdge* he = createHaldEdge(e1, e2, indices, indexCount, vertices);
 
                 if (!he) {
-                    return vector<HalfEdge*>();
+                    return std::vector<HalfEdge*>();
                 }
 
                 halfEdges.push_back(he);
@@ -281,10 +332,10 @@ vector<HalfEdge*> fillHalfEdges(IMesh* mesh) {
     return halfEdges;
 }
 
-vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 Bl = 0.92f) {
-    vector<HalfEdge*> paths;
+std::vector<HalfEdge*> detectSeams(std::vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 Bl = 0.92f) {
+    std::vector<HalfEdge*> paths;
     HalfEdge* selected = 0;
-    vector< vector<S3DVertex*> > features;
+    std::vector< std::vector<S3DVertex*> > features;
 
     for (u32 i = 0; i < halfEdges.size(); ++i) {
         HalfEdge* he = halfEdges[i];
@@ -305,77 +356,14 @@ vector<HalfEdge*> detectSeams(vector<HalfEdge*> halfEdges, f32 Bu = 0.995f, f32 
     return paths;
 }
 
-class Triangle {
-public:
-    Triangle(u32 a, u32 b, u32 c, u16 meshBuffer = 0, u16 feature = -1) {
-        vertices = vector<u32>();
-        vertices.push_back(a);
-        vertices.push_back(b);
-        vertices.push_back(c);
-        featureId = feature;
-        meshBufferId = meshBuffer;
-    }
+std::vector< std::vector<Triangle> > growFeatures(IMesh* mesh) {
+    std::vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
+    std::vector<HalfEdge*> paths = detectSeams(halfEdges);
 
-    void setPositions(vector3df a, vector3df b, vector3df c) {
-        positions.push_back(a);
-        positions.push_back(b);
-        positions.push_back(c);
-    }
+    std::vector< std::vector<u16> > connectedTrianglesList;
 
-    vector<u32> commonVertices(Triangle& tri) {
-        vector<u32> res;
-
-        for (int i = 0; i < 3; i++) {
-            for (int t = 0; t < 3; t++) {
-                if (vertices[i] == tri.vertices[t]) {
-                    res.push_back(vertices[i]);
-                }
-            }
-        }
-
-        return res;
-    }
-
-    void assignFeatureId(s16 f) {
-        if (featureId < 0) {
-            featureId = f;
-        }
-    }
-
-    /*void mapOntoPlaneNear(vector3df A, vector3df B)
-    {
-
-    }
-
-    void mapOntoPlaneNear(Triangle parent)
-    {
-        vector<u32> commonIndexes = commonVertices(parent);
-
-        f32 a = positions, b, c;
-    }
-
-    void mapOntoPlane()
-    {
-
-    }*/
-
-public:
-    vector<u32> vertices;
-    vector<vector3df> positions;
-    vector<vector2di> UVs;
-
-    s16 featureId;
-    u16 meshBufferId;
-};
-
-vector< vector<Triangle> > growFeatures(IMesh* mesh) {
-    vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
-    vector<HalfEdge*> paths = detectSeams(halfEdges);
-
-    vector< vector<u16> > connectedTrianglesList;
-
-    vector<Triangle> triangles;
-    vector< vector<Triangle> > features;
+    std::vector<Triangle> triangles;
+    std::vector< std::vector<Triangle> > features;
 
     u16 meshBufferCount = mesh->getMeshBufferCount();
 
@@ -398,9 +386,9 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
 
             triangle.setPositions(a.Pos, b.Pos, c.Pos);
 
-            u16 triangleIndex = triangles.size();
+            // u16 triangleIndex = triangles.size();
 
-            connectedTrianglesList.push_back(vector<u16>());
+            connectedTrianglesList.push_back(std::vector<u16>());
 
             triangles.push_back(triangle);
         }
@@ -417,7 +405,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
                 continue;
             }
 
-            vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
+            std::vector<u32> c = triangles[t1].commonVertices(triangles[t2]);
 
             if (c.size() > 1) {
                 connectedTrianglesList[t1].push_back(t2);
@@ -431,7 +419,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
         for (u16 t2 = 0; t2 < connectedTrianglesList[t1].size(); ++t2) {
             u16 ti1 = t1, ti2 = connectedTrianglesList[t1][t2];
 
-            vector<u32> c = triangles[ti1].commonVertices(triangles[ti2]);
+            std::vector<u32> c = triangles[ti1].commonVertices(triangles[ti2]);
 
             int featureFound = 0;
 
@@ -440,14 +428,14 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
                     featureFound = 1;
 
                     if (triangles[ti1].featureId < 0) {
-                        vector<Triangle> f;
+                        std::vector<Triangle> f;
                         f.push_back(triangles[ti1]);
                         features.push_back(f);
                         triangles[ti1].assignFeatureId(features.size() - 1);
                     }
 
                     if (triangles[ti2].featureId < 0) {
-                        vector<Triangle> f;
+                        std::vector<Triangle> f;
                         f.push_back(triangles[ti2]);
                         features.push_back(f);
                         triangles[ti2].assignFeatureId(features.size() - 1);
@@ -462,7 +450,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
             }
 
             if (triangles[ti1].featureId < 0) {
-                vector<Triangle> f;
+                std::vector<Triangle> f;
                 f.push_back(triangles[ti1]);
                 features.push_back(f);
                 triangles[ti1].assignFeatureId(features.size() - 1);
@@ -478,8 +466,7 @@ vector< vector<Triangle> > growFeatures(IMesh* mesh) {
     return features;
 }
 
-void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vector<u16> > connectedTrianglesList, vector<Triangle> triangles)
-{
+void renderFeaturesToFiles(std::vector< std::vector<Triangle> > features) {
     char* filename = new char[255];
 
     for (int i = 0; i < features.size(); ++i) {
@@ -487,7 +474,7 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
 
         FILE* f = fopen(filename, "w");
 
-        vector<u16> indices;
+        std::vector<u16> indices;
         u32 indexCount = 0;
 
         for (int t = 0; t < features[i].size(); ++t) {
@@ -510,55 +497,6 @@ void mapFeaturesOntoPlane(vector< vector<Triangle> > features) //, map< u16, vec
 
         fclose(f);
     }
-
-    /*bitset<triangles.size()> mappedAlready;
-
-    for (int i = 0; i < connectedTrianglesList.size(); i++)
-    {
-        if (!mappedAlready[i])
-        {
-            Triangle parentTriangle = triangles[i];
-
-            // map parentTriangle
-        }
-
-
-        for (int t = 0; t < ((vector<Triangle>) connectedTrianglesList[i]).size(); t++)
-        {
-            u16 neighbourIndex = ((vector<Triangle>) connectedTrianglesList[i])[t];
-
-            if (mappedAlready[neighbourIndex])
-                continue;
-
-            Triangle neighbourTriangle = triangles[neighbourIndex];
-
-            // map neighbourTriangle near parentTriangle
-        }
-    }*/
-}
-
-void drawFeaturesToFile(char* baseFilename, vector< vector<Triangle> > features) {
-    /*unsigned char background[] = { 242, 237, 177 },
-        triangleFill[] = { 153, 199, 182 },
-        triangleBorder[] = { 42, 3, 158 };
-
-    for (int i = 0; i < features.size(); i++)
-    {
-        CImg<unsigned char> image(baseFilename); //sprintf("%s_%d.jpg", baseFilename, i));
-
-        image.fill(background);
-
-        for (int t = 0; t < features[i].size(); t++)
-        {
-            Triangle tri = features[i][t];
-            vector2di a = tri.UVs[0], b = tri.UVs[1], c = tri.UVs[2];
-
-            image.draw_triangle(a.X, a.Y, b.X, b.Y, c.X, c.Y, triangleFill);
-            image.draw_line(a.X, a.Y, b.X, b.Y, triangleBorder);
-            image.draw_line(a.X, a.Y, c.X, c.Y, triangleBorder);
-            image.draw_line(b.X, b.Y, c.X, c.Y, triangleBorder);
-        }
-    }*/
 }
 
 int main(int argc, char** argv) {
@@ -581,14 +519,7 @@ int main(int argc, char** argv) {
     ISceneManager* smgr = device->getSceneManager();
     IGUIEnvironment* guienv = device->getGUIEnvironment();
 
-    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Biomech_Fiera.3DS");
-    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/Sovereign_1.obj");
-    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/dwarf.x");
     IAnimatedMesh* modelMesh = smgr->getMesh(argv[1]);
-    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/earth.x");
-    //IAnimatedMesh* modelMesh = smgr->getMesh("../../media/bun_zipper.ply");
-
-    //IAnimatedMesh* modelMesh = smgr->getMesh("./sydney.md2");
 
     if (!modelMesh) {
         device->drop();
@@ -612,10 +543,10 @@ int main(int argc, char** argv) {
     node->setScale(vector3df(10.f, 10.f, 10.f));
 
     IMesh* mesh = modelMesh->getMesh(0);
-    vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
+    std::vector<HalfEdge*> halfEdges = fillHalfEdges(mesh);
 
-    vector<HalfEdge*> seams = detectSeams(halfEdges);
-    vector< vector<Triangle> > features = growFeatures(mesh);
+    std::vector<HalfEdge*> seams = detectSeams(halfEdges);
+    std::vector< std::vector<Triangle> > features = growFeatures(mesh);
 
     smgr->addCameraSceneNodeFPS(0, 50.f, 0.0125f);
     smgr->getActiveCamera()->setNearValue(0.01);
@@ -628,7 +559,7 @@ int main(int argc, char** argv) {
 
     printf("Seams: %ld\nEdge count: %u\nFeature count: %lu\n", seams.size(), edgeCount, features.size());
 
-    mapFeaturesOntoPlane(features);
+    renderFeaturesToFiles(features);
 
     // node->setVisible(false);
 
