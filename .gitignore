@@ -2,8 +2,9 @@
 *.elf
 *.out
 *.o
+.vs
 nbproject
-media
+out
 *.creator*
 *.user*
 *.config

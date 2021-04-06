@@ -6,16 +6,25 @@ This is a simplistic implementation (at least a try to implement) LSCM algorithm
 
 ## Compiling and running
 
-Use Automake (for the moment being):
+1. Install [vcpkg](https://github.com/microsoft/vcpkg/):
+2. Use CMake in conjunction with vcpkg to install the dependencies and build the project:
 
-```
-make
+```bash
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:\src\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build build
 ```
 
-Then just run `irrPaint3d` binary.
+Then just run `irr-paint-3d` binary from the `out` directory, passing the path to a 3d model
+as the first command line argument and the output filename (unwrapped texture) as the second one:
+
+```bash
+.\out\build\x64-Debug\irr-paint-3d.exe out\build\x64-Debug\dwarf.x .\output.jpg
+```
 
 ## License
+
 ### Code
+
 See [LICENSE](LICENSE). The code is thought to be not only significantly different than the example(s) but also not covered by the engine license since examples are trivial and not part of the engine.
 
 ### Media
