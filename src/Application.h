@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ApplicationDelegate.h"
+#include "IrrlichtEventReceiver.h"
+
 #include <irrlicht.h>
 
 #include <iostream>
@@ -7,15 +10,18 @@
 
 class Application {
 public:
-  Application();
+    Application();
 
-  void initialize();
-
-  void run();
+    void run();
 
 private:
-  irr::IrrlichtDevice* device;
-  irr::video::IVideoDriver* driver;
-  irr::scene::ISceneManager* smgr;
-  irr::gui::IGUIEnvironment* guienv;
+    void initialize();
+
+    irr::IrrlichtDevice* device;
+    irr::video::IVideoDriver* driver;
+    irr::scene::ISceneManager* smgr;
+    irr::gui::IGUIEnvironment* guienv;
+
+    std::shared_ptr<ApplicationDelegate> applicationDelegate;
+    std::unique_ptr<IrrlichtEventReceiver> eventReceiver;
 };
