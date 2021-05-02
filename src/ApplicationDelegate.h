@@ -41,14 +41,12 @@ private:
 
     void loadGUI();
 
-    void createToolbar();
-
     void resetFont();
+
+    void drawSelectedTriangle();
 
     irr::gui::IGUIElement* getElementByName(const std::string& name);
     irr::gui::IGUIElement* getElementByName(const std::string& name, irr::gui::IGUIElement* parent);
-
-    irr::scene::ISceneNode* loadMesh(const std::wstring& meshFilename);
 
     irr::IrrlichtDevice* device;
 

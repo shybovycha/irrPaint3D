@@ -29,8 +29,6 @@ void ApplicationDelegate::initGUI()
     loadGUI();
 
     resetFont();
-
-    createToolbar();
 }
 
 void ApplicationDelegate::loadGUI()
@@ -70,19 +68,6 @@ irr::gui::IGUIElement* ApplicationDelegate::getElementByName(const std::string& 
     return nullptr;
 }
 
-irr::scene::ISceneNode* ApplicationDelegate::loadMesh(const std::wstring& meshFilename)
-{
-    return nullptr;
-}
-
-void ApplicationDelegate::createToolbar()
-{
-    /*auto toolbar = reinterpret_cast<irr::gui::IGUIToolBar*>(getElementByName("mainToolBar"));
-
-    auto openModelButton = reinterpret_cast<irr::gui::IGUIButton*>(getElementByName("openModelButton", toolbar));
-    auto saveTextureButton = reinterpret_cast<irr::gui::IGUIButton*>(getElementByName("saveTextureButton", toolbar));*/
-}
-
 void ApplicationDelegate::resetFont()
 {
     irr::gui::IGUIFont* font = guienv->getFont("media/calibri.xml");
@@ -91,6 +76,10 @@ void ApplicationDelegate::resetFont()
 
 void ApplicationDelegate::quit()
 {
+    if (modelMesh != nullptr) {
+        modelMesh->drop();
+    }
+
     device->closeDevice();
 }
 
@@ -102,7 +91,33 @@ void ApplicationDelegate::update()
 
     guienv->drawAll();
 
+    drawSelectedTriangle();
+
     driver->endScene();
+}
+
+void ApplicationDelegate::drawSelectedTriangle()
+{
+    if (triangleSelector == nullptr) {
+        return;
+    }
+
+    const unsigned int MAX_TRIANGLES = 100;
+    const auto TRIANGLE_COLOR = irr::video::SColor(255, 0, 255, 0);
+
+    auto triangles = new irr::core::triangle3df[MAX_TRIANGLES];
+
+    int matchedTriangles = 0;
+
+    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
+
+    irr::core::vector3df collisionPoint;
+    irr::core::triangle3df selectedTriangle;
+    irr::scene::ISceneNode* selectedNode;
+
+    smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
+
+    driver->draw3DTriangle(selectedTriangle, TRIANGLE_COLOR);
 }
 
 void ApplicationDelegate::saveTexture()
@@ -128,8 +143,8 @@ void ApplicationDelegate::saveTexture(const std::wstring& filename)
 
 void ApplicationDelegate::loadModel(const std::wstring& filename)
 {
-    if (modelMesh != nullptr) {
-        modelMesh->drop();
+    if (modelSceneNode != nullptr) {
+        modelSceneNode->drop();
     }
 
     if (filename.empty()) {
@@ -152,9 +167,15 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
     modelSceneNode = smgr->addAnimatedMeshSceneNode(modelMesh);
 
-    modelMesh->setAnimationSpeed(0.f);
+    modelMesh->drop();
+
+    reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode)->setAnimationSpeed(0);
+
+    modelSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
 
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+
+    // camera->setTriangleSelector(triangleSelector);
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
