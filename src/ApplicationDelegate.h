@@ -48,6 +48,8 @@ private:
     irr::gui::IGUIElement* getElementByName(const std::string& name);
     irr::gui::IGUIElement* getElementByName(const std::string& name, irr::gui::IGUIElement* parent);
 
+    irr::core::vector2df getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::IMeshSceneNode* sceneNode);
+
     irr::IrrlichtDevice* device;
 
     irr::video::IVideoDriver* driver;

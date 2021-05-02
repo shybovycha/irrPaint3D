@@ -68,6 +68,58 @@ irr::gui::IGUIElement* ApplicationDelegate::getElementByName(const std::string& 
     return nullptr;
 }
 
+irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::IMeshSceneNode* sceneNode)
+{
+    irr::core::matrix4 inverseTransform(
+        sceneNode->getAbsoluteTransformation(),
+        irr::core::matrix4::EM4CONST_INVERSE
+    );
+
+    inverseTransform.transformVect(triangle.pointA);
+    inverseTransform.transformVect(triangle.pointB);
+    inverseTransform.transformVect(triangle.pointC);
+
+    auto v0 = triangle.pointC - triangle.pointA;
+    auto v1 = triangle.pointB - triangle.pointA;
+    auto v2 = point - triangle.pointA;
+
+    float dot00 = v0.dotProduct(v0);
+    float dot01 = v0.dotProduct(v1);
+    float dot02 = v0.dotProduct(v2);
+    float dot11 = v1.dotProduct(v1);
+    float dot12 = v1.dotProduct(v2);
+
+    float invDenom = 1.f / ((dot00 * dot11) - (dot01 * dot01));
+    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    irr::video::S3DVertex A, B, C;
+
+    auto vertices = static_cast<irr::video::S3DVertex*>(sceneNode->getMesh()->getMeshBuffer(0)->getVertices());
+
+    for (auto i = 0; i < sceneNode->getMesh()->getMeshBuffer(0)->getVertexCount(); ++i)
+    {
+        if (vertices[i].Pos == triangle.pointA)
+        {
+            A = vertices[i];
+        }
+        else if (vertices[i].Pos == triangle.pointB)
+        {
+            B = vertices[i];
+        }
+        else if (vertices[i].Pos == triangle.pointC)
+        {
+            C = vertices[i];
+        }
+    }
+
+    auto t2 = B.TCoords - A.TCoords;
+    auto t1 = C.TCoords - A.TCoords;
+
+    auto uvCoords = A.TCoords + t1 * u + t2 * v;
+
+    return uvCoords;
+}
 void ApplicationDelegate::resetFont()
 {
     irr::gui::IGUIFont* font = guienv->getFont("media/calibri.xml");
@@ -154,13 +206,6 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
     modelMesh = smgr->getMesh(filename.c_str());
 
-    // auto modelViewer = reinterpret_cast<irr::gui::IGUIMeshViewer*>(getElementByName("modelViewer"));
-
-    // modelViewer->setMesh(modelMesh);
-
-    // TODO: Irrlicht does NOT stop animation (╯°□°）╯︵ ┻━┻
-    // modelViewer->getMesh()->setAnimationSpeed(0.f);
-    
     if (triangleSelector != nullptr) {
         triangleSelector->drop();
     }
@@ -173,9 +218,27 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
     modelSceneNode->setMaterialFlag(irr::video::EMF_LIGHTING, false);
 
-    triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+    auto materialsTabControl = reinterpret_cast<irr::gui::IGUITabControl*>(getElementByName("texturePreviewTabControl"));
 
-    // camera->setTriangleSelector(triangleSelector);
+    materialsTabControl->clear();
+
+    for (auto i = 0; i < modelSceneNode->getMaterialCount(); ++i) {
+        auto material = modelSceneNode->getMaterial(i);
+        std::wostringstream tabCaption;
+        
+        tabCaption << "Material " << i + 1;
+
+        auto tab = materialsTabControl->addTab(tabCaption.str().c_str());
+
+        auto textureImage = guienv->addImage(material.getTexture(0), irr::core::vector2di(10, 10));
+
+        tab->addChild(textureImage);
+
+        // textureImage->setMaxSize(irr::core::dimension2du(330, 490));
+        textureImage->setScaleImage(true);
+    }
+
+    triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
