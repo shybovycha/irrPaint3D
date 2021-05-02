@@ -73,7 +73,7 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
             {
                 applicationDelegate->saveTexture();
             }
-            else if (buttonName == "loadModelButton")
+            else if (buttonName == "openModelButton")
             {
                 applicationDelegate->openLoadModelDialog();
             }

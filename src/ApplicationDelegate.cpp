@@ -1,4 +1,4 @@
-#include "ApplicationDelegate.h"
+﻿#include "ApplicationDelegate.h"
 
 ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     device(_device),
@@ -8,13 +8,15 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     camera(nullptr),
     loadModelDialogIsOpen(false),
     saveTextureDialogIsOpen(false),
-    triangleSelector(nullptr)
+    triangleSelector(nullptr),
+    modelMesh(nullptr),
+    modelSceneNode(nullptr)
 {
 }
 
 void ApplicationDelegate::initialize()
 {
-    camera = smgr->addCameraSceneNode();
+    camera = smgr->addCameraSceneNodeMaya(); // addCameraSceneNode();
 
     /*auto animator = new CameraSceneNodeAnimator(device->getCursorControl());
     camera->addAnimator(animator);*/
@@ -105,31 +107,102 @@ void ApplicationDelegate::update()
 
 void ApplicationDelegate::saveTexture()
 {
+    if (textureFilename.empty()) {
+        auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
+
+        if (saveTextureDialog == nullptr) {
+            std::cerr << "Could not save texture to a non-existent (empty name) file" << std::endl;
+            return;
+        }
+
+        textureFilename = saveTextureDialog->getFileName();
+    }
+
+    saveTexture(textureFilename);
 }
 
 void ApplicationDelegate::saveTexture(const std::wstring& filename)
 {
+    // TODO: implement
 }
 
 void ApplicationDelegate::loadModel(const std::wstring& filename)
 {
+    if (modelMesh != nullptr) {
+        modelMesh->drop();
+    }
+
+    if (filename.empty()) {
+        std::cerr << "Could not load non-existent (empty filename) model" << std::endl;
+        return;
+    }
+
+    modelMesh = smgr->getMesh(filename.c_str());
+
+    // auto modelViewer = reinterpret_cast<irr::gui::IGUIMeshViewer*>(getElementByName("modelViewer"));
+
+    // modelViewer->setMesh(modelMesh);
+
+    // TODO: Irrlicht does NOT stop animation (╯°□°）╯︵ ┻━┻
+    // modelViewer->getMesh()->setAnimationSpeed(0.f);
+    
+    if (triangleSelector != nullptr) {
+        triangleSelector->drop();
+    }
+
+    modelSceneNode = smgr->addAnimatedMeshSceneNode(modelMesh);
+
+    modelMesh->setAnimationSpeed(0.f);
+
+    triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
 {
+    if (saveTextureDialogIsOpen) {
+        return;
+    }
+
+    auto saveTextureDialog = new SaveFileDialog(
+        L"Save levels file",
+        guienv,
+        nullptr,
+        static_cast<irr::s32>(-1),
+        true
+    );
+
+    saveTextureDialog->setName("saveTextureDialog");
+
+    guienv->getRootGUIElement()->addChild(saveTextureDialog);
+    
+    saveTextureDialogIsOpen = true;
 }
 
 void ApplicationDelegate::closeSaveTextureDialog()
 {
+    auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
+
+    saveTextureDialog->drop();
+
+    saveTextureDialogIsOpen = false;
 }
 
 void ApplicationDelegate::openLoadModelDialog()
 {
+    auto loadModelDialog = guienv->addFileOpenDialog(L"Select model");
+
+    loadModelDialog->setName(L"loadModelDialog");
+
+    guienv->getRootGUIElement()->addChild(loadModelDialog);
+
+    loadModelDialogIsOpen = true;
 }
 
 void ApplicationDelegate::closeLoadModelDialog()
 {
-    /*auto dialog = getElementByName("loadModelDialog");
+    auto loadModelDialog = reinterpret_cast<irr::gui::IGUIFileOpenDialog*>(getElementByName("loadModelDialog"));
 
-    dialog->hide();*/
+    loadModelDialog->drop();
+
+    loadModelDialogIsOpen = false;
 }

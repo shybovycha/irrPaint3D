@@ -9,6 +9,8 @@
 
 #include <irrlicht.h>
 
+#include "SaveFileDialog.h"
+
 class ApplicationDelegate
 {
 public:
@@ -55,8 +57,13 @@ private:
     irr::gui::IGUIEnvironment* guienv;
     irr::scene::ICameraSceneNode* camera;
 
+    irr::scene::ISceneNode* modelSceneNode;
+    irr::scene::IAnimatedMesh* modelMesh;
+
     irr::scene::ITriangleSelector* triangleSelector;
 
     bool loadModelDialogIsOpen;
     bool saveTextureDialogIsOpen;
+
+    std::wstring textureFilename;
 };

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(irr-paint-3d)
 
 set(EXECUTABLE_NAME irr-paint-3d)
-set(SOURCES "src/main.cpp" "src/Application.h" "src/Application.cpp" "src/IrrlichtEventReceiver.cpp" "src/ApplicationDelegate.h" "src/ApplicationDelegate.cpp")
+set(SOURCES "src/main.cpp" "src/Application.h" "src/Application.cpp" "src/IrrlichtEventReceiver.cpp" "src/ApplicationDelegate.h" "src/ApplicationDelegate.cpp" "src/SaveFileDialog.h" "src/SaveFileDialog.cpp")
 
 add_executable(${EXECUTABLE_NAME} ${SOURCES})
 
