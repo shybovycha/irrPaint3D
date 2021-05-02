@@ -10,13 +10,19 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     saveTextureDialogIsOpen(false),
     triangleSelector(nullptr),
     modelMesh(nullptr),
-    modelSceneNode(nullptr)
+    modelSceneNode(nullptr),
+    renderTarget(nullptr)
 {
 }
 
 void ApplicationDelegate::initialize()
 {
-    camera = smgr->addCameraSceneNodeMaya(); // addCameraSceneNode();
+    camera = smgr->addCameraSceneNodeMaya();
+    fixedCamera = smgr->addCameraSceneNode();
+
+    smgr->setActiveCamera(camera);
+
+    renderTarget = driver->addRenderTargetTexture(irr::core::dimension2du(1024, 1024), "RTT1");
 
     /*auto animator = new CameraSceneNodeAnimator(device->getCursorControl());
     camera->addAnimator(animator);*/
@@ -68,8 +74,108 @@ irr::gui::IGUIElement* ApplicationDelegate::getElementByName(const std::string& 
     return nullptr;
 }
 
-irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::IMeshSceneNode* sceneNode)
+irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::ISceneNode* sceneNode, irr::scene::IMesh* mesh)
 {
+    /*
+      TODO: no need for model transformation here - just use the triangle vertices -> vectors and solve for AB.normalize*u + AC.normalize*v = AP (note how AP is NOT normalized)
+      
+      solving this system as follows:
+
+      A(Ax, Ay, Az)
+      B(Bx, By, Bz)
+      C(Cx, Cy, Cz)
+
+      P(Px, Py, Pz)
+
+      a = vector3df(Cx - Ax, Cy - Ay, Cz - Az).normalize() <=> a(ax, ay, az)
+      b = vector3df(Bx - Ax, By - Ay, Bz - Az).normalize() <=> b(bx, by, bz)
+      p = vector3df(Px - Ax, Py - Ay, Pz - Az) <=> p(px, py, pz)
+
+      a*u + b*v = p
+
+      ax*u + bx*v = px
+      ay*u + by*v = py
+      az*u + bz*v = pz
+
+      Al = sqrt(((Cx - Ax) * (Cx - Ax)) + ((Cy - Ay) * (Cy - Ay)) + ((Cz - Az) * (Cz - Az)))
+      Bl = sqrt(((Bx - Ax) * (Bx - Ax)) + ((By - Ay) * (By - Ay)) + ((Bz - Az) * (Bz - Az)))
+
+      ((Cx - Ax) / Al) * u + ((Bx - Ax) / Bl) * v = Px
+      ((Cy - Ay) / Al) * u + ((By - Ay) / Bl) * v = Py
+      ((Cz - Az) / Al) * u + ((Bz - Az) / Bl) * v = Pz
+
+      A*X=B
+
+      where
+
+      A = matrix:
+
+      {
+        {(Cx - Ax) / Al, (Bx - Ax) / Bl, (Px)},
+        {(Cy - Ay) / Al, (By - Ay) / Bl, (Py)},
+        {(Cz - Az) / Al, (Bz - Az) / Bl, (Pz)}
+      }
+
+      X = matrix:
+
+      {{u, v, -1}}
+
+      B = matrix:
+
+      {{0, 0, 0}}
+
+      then
+
+      X = A.inverse() * B
+
+      in Irrlicht:
+
+      a = (C - A).normalize()
+      b = (B - A).normalize()
+      p = (P - a);
+
+      A = matrix4().setM({
+        a.X, b.X, p.X, 0,
+        a.Y, b.Y, p.Y, 0,
+        a.Z, b.Z, p.Z, 0,
+        0, 0, 0, 0
+      }).getInverse()
+
+      B = vector3df(0, 0, 0)
+
+      X = vector3df(0, 0, -1)
+
+      (A * B).transformVect(X)
+
+      result will be in X
+    */
+
+    //irr::core::vector3df a = (triangle.pointC - triangle.pointA).normalize();
+    //irr::core::vector3df b = (triangle.pointB - triangle.pointA).normalize();
+    //irr::core::vector3df p = (point - triangle.pointA);
+
+    //irr::core::matrix4 mA = irr::core::matrix4(irr::core::matrix4::EM4CONST_NOTHING);
+    //
+    //mA[0] = a.X;
+    //mA[1] = b.X;
+    //mA[2] = p.X; // mA[3] = 0,
+    //mA[4] = a.Y;
+    //mA[5] = b.Y;
+    //mA[6] = p.Y; // mA[7] = 0,
+    //mA[8] = a.Z;
+    //mA[9] = b.Z;
+    //mA[10] = p.Z; // mA[11] = 0,
+    //  // 0, 0, 0, 0
+    //    // });
+    //
+    //irr::core::matrix4 mAInv = irr::core::matrix4(irr::core::matrix4::EM4CONST_NOTHING);
+
+    //irr::core::vector3df mB = irr::core::vector3df(0, 0, 0);
+    //    
+    //irr::core::vector3df mX = irr::core::vector3df(0, 0, -1);
+
+    //(mA * mB).transformVect(mX);
+
     irr::core::matrix4 inverseTransform(
         sceneNode->getAbsoluteTransformation(),
         irr::core::matrix4::EM4CONST_INVERSE
@@ -95,21 +201,30 @@ irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df tria
 
     irr::video::S3DVertex A, B, C;
 
-    auto vertices = static_cast<irr::video::S3DVertex*>(sceneNode->getMesh()->getMeshBuffer(0)->getVertices());
+    // auto mesh = sceneNode->getMesh();
+    auto meshBufferCount = mesh->getMeshBufferCount();
+    auto meshBuffer = mesh->getMeshBuffer(0);
 
-    for (auto i = 0; i < sceneNode->getMesh()->getMeshBuffer(0)->getVertexCount(); ++i)
+    auto vertices = static_cast<irr::video::S3DVertex*>(mesh->getMeshBuffer(0)->getVertices());
+
+    for (auto t = 0; t < mesh->getMeshBufferCount(); ++t)
     {
-        if (vertices[i].Pos == triangle.pointA)
+        auto meshBuffer = mesh->getMeshBuffer(t);
+
+        for (auto i = 0; i < meshBuffer->getVertexCount(); ++i)
         {
-            A = vertices[i];
-        }
-        else if (vertices[i].Pos == triangle.pointB)
-        {
-            B = vertices[i];
-        }
-        else if (vertices[i].Pos == triangle.pointC)
-        {
-            C = vertices[i];
+            if (vertices[i].Pos == triangle.pointA)
+            {
+                A = vertices[i];
+            }
+            else if (vertices[i].Pos == triangle.pointB)
+            {
+                B = vertices[i];
+            }
+            else if (vertices[i].Pos == triangle.pointC)
+            {
+                C = vertices[i];
+            }
         }
     }
 
@@ -139,16 +254,18 @@ void ApplicationDelegate::update()
 {
     driver->beginScene(true, true, irr::video::SColor(0, 200, 200, 200));
 
+    drawSelectedTriangle2D();
+
     smgr->drawAll();
 
     guienv->drawAll();
 
-    drawSelectedTriangle();
+    drawSelectedTriangle3D();
 
     driver->endScene();
 }
 
-void ApplicationDelegate::drawSelectedTriangle()
+void ApplicationDelegate::drawSelectedTriangle2D()
 {
     if (triangleSelector == nullptr) {
         return;
@@ -167,7 +284,93 @@ void ApplicationDelegate::drawSelectedTriangle()
     irr::core::triangle3df selectedTriangle;
     irr::scene::ISceneNode* selectedNode;
 
-    smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
+    bool collisionDetected = smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
+
+    if (!collisionDetected) {
+        return;
+    }
+
+    auto materialsTabControl = reinterpret_cast<irr::gui::IGUITabControl*>(getElementByName("texturePreviewTabControl"));
+
+    auto currentMaterialTabIndex = materialsTabControl->getActiveTab();
+
+    if (currentMaterialTabIndex < 0) {
+        return;
+    }
+
+    auto currentMaterialTab = materialsTabControl->getTab(currentMaterialTabIndex);
+
+    auto image = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("image", currentMaterialTab));
+
+    if (image == nullptr) {
+        return;
+    }
+
+    auto meshSceneNode = reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode);
+    auto animatedMesh = meshSceneNode->getMesh();
+    auto mesh = animatedMesh->getMesh(0);
+
+    auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode, mesh);
+
+    // std::cout << "uv(" << uv.X << "," << uv.Y << ")" << std::endl;
+
+    /*auto textureImage = image->getImage();
+
+    if (textureImage == nullptr) {
+        return;
+    }*/
+
+    auto textureImage = meshSceneNode->getMaterial(1).getTexture(0);
+
+    auto textureSize = textureImage->getOriginalSize();
+
+    auto imageRect = image->getAbsolutePosition();
+
+    auto point = irr::core::vector2di(imageRect.UpperLeftCorner.X + (textureSize.Width * uv.X), imageRect.UpperLeftCorner.Y + (textureSize.Height * uv.Y));
+
+    driver->setRenderTarget(renderTarget);
+
+    smgr->setActiveCamera(fixedCamera);
+
+    driver->draw2DImage(textureImage, irr::core::vector2di(0, 0));
+
+    driver->draw2DLine(irr::core::position2di(point.X - 50, point.Y - 50), irr::core::position2di(point.X + 50, point.Y + 50), TRIANGLE_COLOR);
+    driver->draw2DLine(irr::core::position2di(point.X + 50, point.Y - 50), irr::core::position2di(point.X - 50, point.Y + 50), TRIANGLE_COLOR);
+
+    driver->draw2DLine(irr::core::position2di(100, 100), irr::core::position2di(220, 220), TRIANGLE_COLOR);
+    driver->draw2DLine(irr::core::position2di(220, 100), irr::core::position2di(100, 220), TRIANGLE_COLOR);
+
+    driver->setRenderTarget(0);
+
+    smgr->setActiveCamera(camera);
+
+    image->setImage(renderTarget);
+}
+
+void ApplicationDelegate::drawSelectedTriangle3D()
+{
+    if (triangleSelector == nullptr) {
+        return;
+    }
+
+    const unsigned int MAX_TRIANGLES = 100;
+    const auto TRIANGLE_COLOR = irr::video::SColor(255, 0, 255, 0);
+
+    auto triangles = new irr::core::triangle3df[MAX_TRIANGLES];
+
+    int matchedTriangles = 0;
+
+    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
+
+    irr::core::vector3df collisionPoint;
+    irr::core::triangle3df selectedTriangle;
+    irr::scene::ISceneNode* selectedNode;
+
+    bool collisionDetected = smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
+
+    if (!collisionDetected) {
+        return;
+    }
 
     driver->draw3DTriangle(selectedTriangle, TRIANGLE_COLOR);
 }
@@ -224,17 +427,24 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
     for (auto i = 0; i < modelSceneNode->getMaterialCount(); ++i) {
         auto material = modelSceneNode->getMaterial(i);
+        auto texture = material.getTexture(0);
+
+        if (texture == nullptr) {
+            continue;
+        }
+
         std::wostringstream tabCaption;
         
         tabCaption << "Material " << i + 1;
 
         auto tab = materialsTabControl->addTab(tabCaption.str().c_str());
 
-        auto textureImage = guienv->addImage(material.getTexture(0), irr::core::vector2di(10, 10));
+        auto textureImage = guienv->addImage(texture, irr::core::vector2di(10, 10));
+
+        textureImage->setName("image");
 
         tab->addChild(textureImage);
 
-        // textureImage->setMaxSize(irr::core::dimension2du(330, 490));
         textureImage->setScaleImage(true);
     }
 
