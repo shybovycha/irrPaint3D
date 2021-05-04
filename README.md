@@ -2,7 +2,31 @@
 
 ## Overview
 
-This is a simplistic implementation (at least a try to implement) LSCM algorithm as it is described in ALICE.
+This application aims at imlpementing painting 3D models in realtime.
+
+Currently application only picks the UV coordinates of a selected point on a 3D model and shows it in a texture preview window.
+If your model has multiple materials with textures, the ones without textures are not displayed - there is simply no reason for that.
+
+![Screenshot](https://raw.githubusercontent.com/shybovycha/irrPaint3D/master/media/screenshot2.png)
+
+## TODO
+
+### Required
+
+Features still not implemented but required:
+
+- [ ] Actually drawing on the model
+- [ ] Saving the modified texture
+
+### Optional
+
+Things that are not really required but which would greatly improve user experience:
+
+- [ ] Translating / rotating / scaling the model instead of the camera
+- [ ] Choosing the brushes - color, size, opacity
+- [ ] Preventing screen from flickering with black when hovering over model
+- [ ] Pointing to the selected point on a model with 3D arrow instead of highlighting the whole triangle
+- [ ] Updating model texture on the fly
 
 ## Compiling and running
 
@@ -14,12 +38,14 @@ cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:\src\vcpkg\scripts\buildsystems\vcp
 cmake --build build
 ```
 
-Then just run `irr-paint-3d` binary from the `out` directory, passing the path to a 3d model
-as the first command line argument and the output filename (unwrapped texture) as the second one:
+Then just run `irr-paint-3d` binary from the `out` directory.
 
 ```bash
-.\out\build\x64-Debug\irr-paint-3d.exe out\build\x64-Debug\dwarf.x .\output.jpg
+.\out\build\x64-Debug\irr-paint-3d.exe
 ```
+
+Use UI to open the 3D model. Use `RMB` (Right Mouse Button) to move camera around and `LMB` (Left Mouse Button) to rotate camera.
+To zoom in and out use `RMB + LMB`.
 
 ## License
 
@@ -28,7 +54,8 @@ as the first command line argument and the output filename (unwrapped texture) a
 See [LICENSE](LICENSE). The code is thought to be not only significantly different than the example(s) but also not covered by the engine license since examples are trivial and not part of the engine.
 
 ### Media
-(dwarf model and texture from Irrlicht Example 8 SpecialFX)
+
+* dwarf model and texture from [Irrlicht Example 8 SpecialFX](http://irrlicht.sourceforge.net/docu/example008.html)
 
 ```
   The Irrlicht Engine License
