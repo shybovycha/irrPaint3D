@@ -70,6 +70,9 @@ private:
     irr::video::IImage* brushImage;
     irr::video::IImage* selectedTextureImage;
     irr::video::ITexture* selectedTexture;
+    
+    irr::video::IImage* tempImage;
+    irr::video::ITexture* tempTexture;
 
     irr::scene::ITriangleSelector* triangleSelector;
 

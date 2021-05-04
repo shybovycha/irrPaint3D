@@ -13,7 +13,9 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     modelSceneNode(nullptr),
     brushImage(nullptr),
     selectedTextureImage(nullptr),
-    selectedTexture(nullptr)
+    selectedTexture(nullptr),
+    tempImage(nullptr),
+    tempTexture(nullptr)
 {
 }
 
@@ -256,24 +258,23 @@ void ApplicationDelegate::drawSelectedTriangle2D()
             if (isDrawing)
             {
                 brushImage->copyTo(selectedTextureImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
+
+                selectedTextureImage->copyTo(tempImage, irr::core::vector2di(0, 0));
              
-                auto tempTexture = driver->addTexture("temp", selectedTextureImage);
+                driver->removeTexture(tempTexture);
+                tempTexture = driver->addTexture("__tempTexture__", tempImage);
                 
                 image->setImage(tempTexture);
-                // tempTexture->drop();
             } else
             {
-                auto tempImage = driver->createImage(irr::video::ECF_A8R8G8B8, selectedTextureImage);
-
+                selectedTextureImage->copyTo(tempImage, irr::core::vector2di(0, 0));
+                
                 brushImage->copyTo(tempImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
-                // brushImage->copyTo(tempImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
 
-                auto tempTexture = driver->addTexture("temp", tempImage);
+                driver->removeTexture(tempTexture);
+                tempTexture = driver->addTexture("__tempTexture__", tempImage);
 
                 image->setImage(tempTexture);
-
-                tempImage->drop();
-                // tempTexture->drop();
             }
         }
     }
@@ -387,6 +388,9 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
         // TODO: refactor this to be done on every __tab change__ and potentially use some caching
         selectedTextureImage = driver->createImage(texture, irr::core::vector2di(0, 0), texture->getOriginalSize());
+        
+        tempImage = driver->createImage(irr::video::ECF_A8R8G8B8, selectedTextureImage);
+        tempTexture = driver->addTexture("__tempTexture__", tempImage);
     }
 
     brushImage = createBrush(25, 5, irr::video::SColor(255, 0, 0, 0));
