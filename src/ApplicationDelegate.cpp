@@ -6,24 +6,22 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     guienv(device->getGUIEnvironment()),
     driver(device->getVideoDriver()),
     camera(nullptr),
-    fixedCamera(nullptr),
     loadModelDialogIsOpen(false),
     saveTextureDialogIsOpen(false),
     triangleSelector(nullptr),
     modelMesh(nullptr),
     modelSceneNode(nullptr),
-    renderTarget(nullptr)
+    brushImage(nullptr),
+    selectedTextureImage(nullptr),
+    selectedTexture(nullptr)
 {
 }
 
 void ApplicationDelegate::initialize()
 {
     camera = smgr->addCameraSceneNodeMaya();
-    fixedCamera = smgr->addCameraSceneNode();
 
     smgr->setActiveCamera(camera);
-
-    renderTarget = driver->addRenderTargetTexture(irr::core::dimension2du(1024, 1024), "RTT1");
 
     initGUI();
 }
@@ -80,10 +78,6 @@ void ApplicationDelegate::resetFont()
 
 void ApplicationDelegate::quit()
 {
-    if (modelMesh != nullptr) {
-        modelMesh->drop();
-    }
-
     device->closeDevice();
 }
 
@@ -117,7 +111,20 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     int matchedTriangles = 0;
 
-    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
+    auto cursorPosition = device->getCursorControl()->getPosition();
+
+    if (cursorPosition == previousMouseCursorPosition && previousIsDrawing == isDrawing)
+    {
+        // mouse cursor position did not change - no need to perform all these operations
+        return;
+    }
+    else
+    {
+        previousMouseCursorPosition = cursorPosition;
+        previousIsDrawing = isDrawing;
+    }
+
+    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(cursorPosition, camera);
 
     irr::core::vector3df collisionPoint;
     irr::core::triangle3df selectedTriangle;
@@ -148,8 +155,6 @@ void ApplicationDelegate::drawSelectedTriangle2D()
     auto meshSceneNode = reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode);
     auto animatedMesh = meshSceneNode->getMesh();
     
-    // auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode);
-
     {
         irr::video::S3DVertex A, B, C;
 
@@ -246,26 +251,42 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
             auto textureSize = textureImage->getOriginalSize();
 
-            auto imageRect = image->getAbsolutePosition();
-
             auto point = irr::core::vector2di((textureSize.Width * uvCoords.X), (textureSize.Height * uvCoords.Y));
 
-            driver->setRenderTarget(renderTarget);
+            if (isDrawing)
+            {
+                brushImage->copyTo(selectedTextureImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
+             
+                auto tempTexture = driver->addTexture("temp", selectedTextureImage);
+                
+                image->setImage(tempTexture);
+                // tempTexture->drop();
+            } else
+            {
+                auto tempImage = driver->createImage(irr::video::ECF_A8R8G8B8, selectedTextureImage);
 
-            smgr->setActiveCamera(fixedCamera);
+                brushImage->copyTo(tempImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
+                // brushImage->copyTo(tempImage, point, irr::core::recti(0, 0, brushImage->getDimension().Width, brushImage->getDimension().Height));
 
-            driver->draw2DImage(textureImage, irr::core::vector2di(0, 0));
+                auto tempTexture = driver->addTexture("temp", tempImage);
 
-            driver->draw2DLine(irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
-            driver->draw2DLine(irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
+                image->setImage(tempTexture);
 
-            driver->setRenderTarget(0);
-
-            smgr->setActiveCamera(camera);
-
-            image->setImage(renderTarget);
+                tempImage->drop();
+                // tempTexture->drop();
+            }
         }
     }
+}
+
+void ApplicationDelegate::beginDrawing()
+{
+    isDrawing = true;
+}
+
+void ApplicationDelegate::endDrawing()
+{
+    isDrawing = false;
 }
 
 void ApplicationDelegate::drawSelectedTriangle3D()
@@ -320,7 +341,7 @@ void ApplicationDelegate::saveTexture(const std::wstring& filename)
 void ApplicationDelegate::loadModel(const std::wstring& filename)
 {
     if (modelSceneNode != nullptr) {
-        modelSceneNode->drop();
+        modelSceneNode->remove();
     }
 
     if (filename.empty()) {
@@ -329,10 +350,6 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
     }
 
     modelMesh = smgr->getMesh(filename.c_str());
-
-    if (triangleSelector != nullptr) {
-        triangleSelector->drop();
-    }
 
     modelSceneNode = smgr->addAnimatedMeshSceneNode(modelMesh);
 
@@ -367,9 +384,56 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
         tab->addChild(textureImage);
 
         textureImage->setScaleImage(true);
+
+        // TODO: refactor this to be done on every __tab change__ and potentially use some caching
+        selectedTextureImage = driver->createImage(texture, irr::core::vector2di(0, 0), texture->getOriginalSize());
     }
 
+    brushImage = createBrush(25, 5, irr::video::SColor(255, 0, 0, 0));
+
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+}
+
+irr::video::IImage* ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
+{
+    const auto size = (brushSize + featherRadius) * 2;
+
+    // cimg_library::CImg<unsigned char> brush(size, size, 1, 4); // 4 channels (RGBA) and 1 slice
+    auto brush = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(size, size));
+
+    brush->fill(irr::video::SColor(0, 0, 0, 0));
+
+    auto maxDistance = sqrt((size / 2, 2) + pow(size / 2, 2)) - featherRadius;
+
+    for (auto x = 0; x < size; ++x) {
+        for (auto y = 0; y < size; ++y) {
+            auto distanceFromCentre = sqrt(pow(((size / 2) - x), 2) + pow(((size / 2) - y), 2));
+
+            if (distanceFromCentre <= brushSize) {
+                brush->setPixel(x, y, color);
+
+                /*brush(x, y, 0, 0) = color.getRed();
+                brush(x, y, 0, 1) = color.getGreen();
+                brush(x, y, 0, 2) = color.getBlue();
+                brush(x, y, 0, 3) = color.getAlpha();*/
+            }
+            else if (featherRadius > 0)
+            {
+                auto multiplier = (1 - ((distanceFromCentre - brushSize) / maxDistance));
+
+                brush->setPixel(x, y, irr::video::SColor(multiplier * 255, multiplier * color.getRed(), multiplier * color.getGreen(), multiplier * color.getBlue()));
+
+                //brush(x, y, 0, 0) = multiplier * color.getRed();
+                //brush(x, y, 0, 1) = multiplier * color.getGreen();
+                //brush(x, y, 0, 2) = multiplier * color.getBlue();
+                //brush(x, y, 0, 3) = multiplier * color.getAlpha(); // TODO: or just 255?
+            }
+        }
+    }
+
+    // auto image = driver->createImageFromData(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(size, size), brush.data());
+
+    return brush;
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
@@ -397,7 +461,7 @@ void ApplicationDelegate::closeSaveTextureDialog()
 {
     auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
 
-    saveTextureDialog->drop();
+    saveTextureDialog->remove();
 
     saveTextureDialogIsOpen = false;
 }
@@ -417,7 +481,7 @@ void ApplicationDelegate::closeLoadModelDialog()
 {
     auto loadModelDialog = reinterpret_cast<irr::gui::IGUIFileOpenDialog*>(getElementByName("loadModelDialog"));
 
-    loadModelDialog->drop();
+    loadModelDialog->remove();
 
     loadModelDialogIsOpen = false;
 }

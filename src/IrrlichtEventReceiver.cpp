@@ -17,12 +17,18 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
         return false;
     }
 
-    //if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
-    //{
-    //    if (event.MouseInput.isLeftPressed() && applicationDelegate->isMouseOverGUI())
-    //    {
-    //        return true;
-    //    }
+    if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
+    {
+        if (event.MouseInput.isLeftPressed()) // && applicationDelegate->isMouseOverGUI())
+        {
+            applicationDelegate->beginDrawing();
+            // return false;
+        }
+        else 
+        {
+            applicationDelegate->endDrawing();
+        }
+    }
 
     //    if (event.MouseInput.Event == irr::EMIE_MOUSE_MOVED)
     //    {

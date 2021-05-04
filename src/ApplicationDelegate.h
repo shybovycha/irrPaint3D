@@ -35,6 +35,10 @@ public:
 
     void closeLoadModelDialog();
 
+    void beginDrawing();
+
+    void endDrawing();
+
     void quit();
 
 private:
@@ -50,7 +54,7 @@ private:
     irr::gui::IGUIElement* getElementByName(const std::string& name);
     irr::gui::IGUIElement* getElementByName(const std::string& name, irr::gui::IGUIElement* parent);
 
-    irr::core::vector2df getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::ISceneNode* sceneNode, irr::scene::IMesh* mesh);
+    irr::video::IImage* createBrush(float brushSize, float featherRadius = 0.f, irr::video::SColor color = irr::video::SColor(255, 255, 255, 255));
 
     irr::IrrlichtDevice* device;
 
@@ -59,17 +63,23 @@ private:
     irr::gui::IGUIEnvironment* guienv;
     
     irr::scene::ICameraSceneNode* camera;
-    irr::scene::ICameraSceneNode* fixedCamera;
 
     irr::scene::ISceneNode* modelSceneNode;
     irr::scene::IAnimatedMesh* modelMesh;
 
-    irr::video::ITexture* renderTarget;
+    irr::video::IImage* brushImage;
+    irr::video::IImage* selectedTextureImage;
+    irr::video::ITexture* selectedTexture;
 
     irr::scene::ITriangleSelector* triangleSelector;
 
+    irr::core::vector2di previousMouseCursorPosition;
+
     bool loadModelDialogIsOpen;
     bool saveTextureDialogIsOpen;
+
+    bool isDrawing;
+    bool previousIsDrawing;
 
     std::wstring textureFilename;
 };
