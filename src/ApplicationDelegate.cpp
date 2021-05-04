@@ -76,157 +76,69 @@ irr::gui::IGUIElement* ApplicationDelegate::getElementByName(const std::string& 
 
 irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::ISceneNode* sceneNode, irr::scene::IMesh* mesh)
 {
-    /*
-      TODO: no need for model transformation here - just use the triangle vertices -> vectors and solve for AB.normalize*u + AC.normalize*v = AP (note how AP is NOT normalized)
-      
-      solving this system as follows:
-
-      A(Ax, Ay, Az)
-      B(Bx, By, Bz)
-      C(Cx, Cy, Cz)
-
-      P(Px, Py, Pz)
-
-      a = vector3df(Cx - Ax, Cy - Ay, Cz - Az).normalize() <=> a(ax, ay, az)
-      b = vector3df(Bx - Ax, By - Ay, Bz - Az).normalize() <=> b(bx, by, bz)
-      p = vector3df(Px - Ax, Py - Ay, Pz - Az) <=> p(px, py, pz)
-
-      a*u + b*v = p
-
-      ax*u + bx*v = px
-      ay*u + by*v = py
-      az*u + bz*v = pz
-
-      Al = sqrt(((Cx - Ax) * (Cx - Ax)) + ((Cy - Ay) * (Cy - Ay)) + ((Cz - Az) * (Cz - Az)))
-      Bl = sqrt(((Bx - Ax) * (Bx - Ax)) + ((By - Ay) * (By - Ay)) + ((Bz - Az) * (Bz - Az)))
-
-      ((Cx - Ax) / Al) * u + ((Bx - Ax) / Bl) * v = Px
-      ((Cy - Ay) / Al) * u + ((By - Ay) / Bl) * v = Py
-      ((Cz - Az) / Al) * u + ((Bz - Az) / Bl) * v = Pz
-
-      A*X=B
-
-      where
-
-      A = matrix:
-
-      {
-        {(Cx - Ax) / Al, (Bx - Ax) / Bl, (Px)},
-        {(Cy - Ay) / Al, (By - Ay) / Bl, (Py)},
-        {(Cz - Az) / Al, (Bz - Az) / Bl, (Pz)}
-      }
-
-      X = matrix:
-
-      {{u, v, -1}}
-
-      B = matrix:
-
-      {{0, 0, 0}}
-
-      then
-
-      X = A.inverse() * B
-
-      in Irrlicht:
-
-      a = (C - A).normalize()
-      b = (B - A).normalize()
-      p = (P - a);
-
-      A = matrix4().setM({
-        a.X, b.X, p.X, 0,
-        a.Y, b.Y, p.Y, 0,
-        a.Z, b.Z, p.Z, 0,
-        0, 0, 0, 0
-      }).getInverse()
-
-      B = vector3df(0, 0, 0)
-
-      X = vector3df(0, 0, -1)
-
-      (A * B).transformVect(X)
-
-      result will be in X
-    */
-
-    //irr::core::vector3df a = (triangle.pointC - triangle.pointA).normalize();
-    //irr::core::vector3df b = (triangle.pointB - triangle.pointA).normalize();
-    //irr::core::vector3df p = (point - triangle.pointA);
-
-    //irr::core::matrix4 mA = irr::core::matrix4(irr::core::matrix4::EM4CONST_NOTHING);
-    //
-    //mA[0] = a.X;
-    //mA[1] = b.X;
-    //mA[2] = p.X; // mA[3] = 0,
-    //mA[4] = a.Y;
-    //mA[5] = b.Y;
-    //mA[6] = p.Y; // mA[7] = 0,
-    //mA[8] = a.Z;
-    //mA[9] = b.Z;
-    //mA[10] = p.Z; // mA[11] = 0,
-    //  // 0, 0, 0, 0
-    //    // });
-    //
-    //irr::core::matrix4 mAInv = irr::core::matrix4(irr::core::matrix4::EM4CONST_NOTHING);
-
-    //irr::core::vector3df mB = irr::core::vector3df(0, 0, 0);
-    //    
-    //irr::core::vector3df mX = irr::core::vector3df(0, 0, -1);
-
-    //(mA * mB).transformVect(mX);
-
-    irr::core::matrix4 inverseTransform(
-        sceneNode->getAbsoluteTransformation(),
-        irr::core::matrix4::EM4CONST_INVERSE
-    );
-
-    inverseTransform.transformVect(triangle.pointA);
-    inverseTransform.transformVect(triangle.pointB);
-    inverseTransform.transformVect(triangle.pointC);
-
-    auto v0 = triangle.pointC - triangle.pointA;
-    auto v1 = triangle.pointB - triangle.pointA;
-    auto v2 = point - triangle.pointA;
-
-    float dot00 = v0.dotProduct(v0);
-    float dot01 = v0.dotProduct(v1);
-    float dot02 = v0.dotProduct(v2);
-    float dot11 = v1.dotProduct(v1);
-    float dot12 = v1.dotProduct(v2);
-
-    float invDenom = 1.f / ((dot00 * dot11) - (dot01 * dot01));
-    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-
     irr::video::S3DVertex A, B, C;
 
-    // auto mesh = sceneNode->getMesh();
     auto meshBufferCount = mesh->getMeshBufferCount();
     auto meshBuffer = mesh->getMeshBuffer(0);
 
-    auto vertices = static_cast<irr::video::S3DVertex*>(mesh->getMeshBuffer(0)->getVertices());
+    bool foundA = false;
+    bool foundB = false;
+    bool foundC = false;
 
     for (auto t = 0; t < mesh->getMeshBufferCount(); ++t)
     {
         auto meshBuffer = mesh->getMeshBuffer(t);
+
+        auto vertices = static_cast<irr::video::S3DVertex*>(meshBuffer->getVertices());
 
         for (auto i = 0; i < meshBuffer->getVertexCount(); ++i)
         {
             if (vertices[i].Pos == triangle.pointA)
             {
                 A = vertices[i];
+                foundA = true;
             }
             else if (vertices[i].Pos == triangle.pointB)
             {
                 B = vertices[i];
+                foundB = true;
             }
             else if (vertices[i].Pos == triangle.pointC)
             {
                 C = vertices[i];
+                foundC = true;
             }
         }
     }
+
+    if (!foundA || !foundB || !foundC) {
+        return irr::core::vector2df();
+    }
+
+    irr::core::vector3df a = B.Pos - A.Pos;
+    irr::core::vector3df b = C.Pos - A.Pos;
+    irr::core::vector3df p = point - A.Pos;
+
+    float u, v;
+
+    // au + bv = p
+    if (a.X != 0) {
+        v = ((a.X * p.Y) - (a.Y * p.X)) / ((a.X * b.Y) - (a.Y * b.X));
+        u = (p.X - (b.X * v)) / a.X;
+    }
+    else if (a.Y != 0) {
+        v = ((a.Y * p.Z) - (a.Z * p.Y)) / ((a.Y * b.Z) - (a.Z * b.Y));
+        u = (p.Y - (b.Y * v)) / a.Y;
+    }
+    else if (a.Z != 0) {
+        v = ((a.Z * p.X) - (a.X * p.Z)) / ((a.Z * b.X) - (a.X * b.Z));
+        u = (p.Z - (b.Z * v)) / a.Z;
+    }
+    else {
+        throw "Invalid input - zero basis vector";
+    }
+
+    // assert((a * u + b * v) == p);
 
     auto t2 = B.TCoords - A.TCoords;
     auto t1 = C.TCoords - A.TCoords;
@@ -312,21 +224,13 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode, mesh);
 
-    // std::cout << "uv(" << uv.X << "," << uv.Y << ")" << std::endl;
-
-    /*auto textureImage = image->getImage();
-
-    if (textureImage == nullptr) {
-        return;
-    }*/
-
     auto textureImage = meshSceneNode->getMaterial(1).getTexture(0);
 
     auto textureSize = textureImage->getOriginalSize();
 
     auto imageRect = image->getAbsolutePosition();
 
-    auto point = irr::core::vector2di(imageRect.UpperLeftCorner.X + (textureSize.Width * uv.X), imageRect.UpperLeftCorner.Y + (textureSize.Height * uv.Y));
+    auto point = irr::core::vector2di((textureSize.Width * uv.X), (textureSize.Height * uv.Y));
 
     driver->setRenderTarget(renderTarget);
 
@@ -336,9 +240,6 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     driver->draw2DLine(irr::core::position2di(point.X - 50, point.Y - 50), irr::core::position2di(point.X + 50, point.Y + 50), TRIANGLE_COLOR);
     driver->draw2DLine(irr::core::position2di(point.X + 50, point.Y - 50), irr::core::position2di(point.X - 50, point.Y + 50), TRIANGLE_COLOR);
-
-    driver->draw2DLine(irr::core::position2di(100, 100), irr::core::position2di(220, 220), TRIANGLE_COLOR);
-    driver->draw2DLine(irr::core::position2di(220, 100), irr::core::position2di(100, 220), TRIANGLE_COLOR);
 
     driver->setRenderTarget(0);
 
