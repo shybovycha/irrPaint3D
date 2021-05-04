@@ -6,6 +6,7 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     guienv(device->getGUIEnvironment()),
     driver(device->getVideoDriver()),
     camera(nullptr),
+    fixedCamera(nullptr),
     loadModelDialogIsOpen(false),
     saveTextureDialogIsOpen(false),
     triangleSelector(nullptr),
@@ -23,9 +24,6 @@ void ApplicationDelegate::initialize()
     smgr->setActiveCamera(camera);
 
     renderTarget = driver->addRenderTargetTexture(irr::core::dimension2du(1024, 1024), "RTT1");
-
-    /*auto animator = new CameraSceneNodeAnimator(device->getCursorControl());
-    camera->addAnimator(animator);*/
 
     initGUI();
 }
@@ -74,79 +72,6 @@ irr::gui::IGUIElement* ApplicationDelegate::getElementByName(const std::string& 
     return nullptr;
 }
 
-irr::core::vector2df ApplicationDelegate::getPointUV(irr::core::triangle3df triangle, irr::core::vector3df point, irr::scene::ISceneNode* sceneNode, irr::scene::IMesh* mesh)
-{
-    irr::video::S3DVertex A, B, C;
-
-    auto meshBufferCount = mesh->getMeshBufferCount();
-    auto meshBuffer = mesh->getMeshBuffer(0);
-
-    bool foundA = false;
-    bool foundB = false;
-    bool foundC = false;
-
-    for (auto t = 0; t < mesh->getMeshBufferCount(); ++t)
-    {
-        auto meshBuffer = mesh->getMeshBuffer(t);
-
-        auto vertices = static_cast<irr::video::S3DVertex*>(meshBuffer->getVertices());
-
-        for (auto i = 0; i < meshBuffer->getVertexCount(); ++i)
-        {
-            if (vertices[i].Pos == triangle.pointA)
-            {
-                A = vertices[i];
-                foundA = true;
-            }
-            else if (vertices[i].Pos == triangle.pointB)
-            {
-                B = vertices[i];
-                foundB = true;
-            }
-            else if (vertices[i].Pos == triangle.pointC)
-            {
-                C = vertices[i];
-                foundC = true;
-            }
-        }
-    }
-
-    if (!foundA || !foundB || !foundC) {
-        return irr::core::vector2df();
-    }
-
-    irr::core::vector3df a = B.Pos - A.Pos;
-    irr::core::vector3df b = C.Pos - A.Pos;
-    irr::core::vector3df p = point - A.Pos;
-
-    float u, v;
-
-    // au + bv = p
-    if (a.X != 0) {
-        v = ((a.X * p.Y) - (a.Y * p.X)) / ((a.X * b.Y) - (a.Y * b.X));
-        u = (p.X - (b.X * v)) / a.X;
-    }
-    else if (a.Y != 0) {
-        v = ((a.Y * p.Z) - (a.Z * p.Y)) / ((a.Y * b.Z) - (a.Z * b.Y));
-        u = (p.Y - (b.Y * v)) / a.Y;
-    }
-    else if (a.Z != 0) {
-        v = ((a.Z * p.X) - (a.X * p.Z)) / ((a.Z * b.X) - (a.X * b.Z));
-        u = (p.Z - (b.Z * v)) / a.Z;
-    }
-    else {
-        throw "Invalid input - zero basis vector";
-    }
-
-    // assert((a * u + b * v) == p);
-
-    auto t2 = B.TCoords - A.TCoords;
-    auto t1 = C.TCoords - A.TCoords;
-
-    auto uvCoords = A.TCoords + t1 * u + t2 * v;
-
-    return uvCoords;
-}
 void ApplicationDelegate::resetFont()
 {
     irr::gui::IGUIFont* font = guienv->getFont("media/calibri.xml");
@@ -184,6 +109,8 @@ void ApplicationDelegate::drawSelectedTriangle2D()
     }
 
     const unsigned int MAX_TRIANGLES = 100;
+    const unsigned int TEXTURE_CURSOR_SIZE = 25;
+
     const auto TRIANGLE_COLOR = irr::video::SColor(255, 0, 255, 0);
 
     auto triangles = new irr::core::triangle3df[MAX_TRIANGLES];
@@ -220,32 +147,125 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     auto meshSceneNode = reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode);
     auto animatedMesh = meshSceneNode->getMesh();
-    auto mesh = animatedMesh->getMesh(0);
+    
+    // auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode);
 
-    auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode, mesh);
+    {
+        irr::video::S3DVertex A, B, C;
 
-    auto textureImage = meshSceneNode->getMaterial(1).getTexture(0);
+        auto meshBufferCount = animatedMesh->getMeshBufferCount();
+        auto meshBuffer = animatedMesh->getMeshBuffer(0);
 
-    auto textureSize = textureImage->getOriginalSize();
+        bool foundA = false;
+        bool foundB = false;
+        bool foundC = false;
 
-    auto imageRect = image->getAbsolutePosition();
+        irr::video::SMaterial selectedMaterial;
 
-    auto point = irr::core::vector2di((textureSize.Width * uv.X), (textureSize.Height * uv.Y));
+        int materialTabCount = -1;
+        int materialTabIndex = -1;
 
-    driver->setRenderTarget(renderTarget);
+        for (auto t = 0; t < animatedMesh->getMeshBufferCount(); ++t)
+        {
+            auto meshBuffer = animatedMesh->getMeshBuffer(t);
+            auto material = meshBuffer->getMaterial();
 
-    smgr->setActiveCamera(fixedCamera);
+            if (material.getTexture(0) != nullptr)
+            {
+                ++materialTabCount;
+            }
 
-    driver->draw2DImage(textureImage, irr::core::vector2di(0, 0));
+            auto vertices = static_cast<irr::video::S3DVertex*>(meshBuffer->getVertices());
 
-    driver->draw2DLine(irr::core::position2di(point.X - 50, point.Y - 50), irr::core::position2di(point.X + 50, point.Y + 50), TRIANGLE_COLOR);
-    driver->draw2DLine(irr::core::position2di(point.X + 50, point.Y - 50), irr::core::position2di(point.X - 50, point.Y + 50), TRIANGLE_COLOR);
+            for (auto i = 0; i < meshBuffer->getVertexCount(); ++i)
+            {
+                if (vertices[i].Pos == selectedTriangle.pointA)
+                {
+                    A = vertices[i];
+                    foundA = true;
 
-    driver->setRenderTarget(0);
+                    materialTabIndex = materialTabCount;
+                    selectedMaterial = material;
+                }
+                else if (vertices[i].Pos == selectedTriangle.pointB)
+                {
+                    B = vertices[i];
+                    foundB = true;
+                }
+                else if (vertices[i].Pos == selectedTriangle.pointC)
+                {
+                    C = vertices[i];
+                    foundC = true;
+                }
+            }
+        }
 
-    smgr->setActiveCamera(camera);
+        if (foundA && foundB && foundC) {
+            irr::core::vector3df a = B.Pos - A.Pos;
+            irr::core::vector3df b = C.Pos - A.Pos;
+            irr::core::vector3df p = collisionPoint - A.Pos;
 
-    image->setImage(renderTarget);
+            float u, v;
+
+            // au + bv = p
+            if (a.X != 0) {
+                v = ((a.X * p.Y) - (a.Y * p.X)) / ((a.X * b.Y) - (a.Y * b.X));
+                u = (p.X - (b.X * v)) / a.X;
+            }
+            else if (a.Y != 0) {
+                v = ((a.Y * p.Z) - (a.Z * p.Y)) / ((a.Y * b.Z) - (a.Z * b.Y));
+                u = (p.Y - (b.Y * v)) / a.Y;
+            }
+            else if (a.Z != 0) {
+                v = ((a.Z * p.X) - (a.X * p.Z)) / ((a.Z * b.X) - (a.X * b.Z));
+                u = (p.Z - (b.Z * v)) / a.Z;
+            }
+            else {
+                throw "Invalid input - zero basis vector";
+            }
+
+            // assert((a * u + b * v) == p);
+
+            auto t2 = B.TCoords - A.TCoords;
+            auto t1 = C.TCoords - A.TCoords;
+
+            auto uvCoords = A.TCoords + t1 * u + t2 * v;
+
+            // ...
+            auto textureImage = selectedMaterial.getTexture(0);
+
+            if (textureImage == nullptr) {
+                return;
+            }
+
+            // TODO: rework this
+            // this code is garbage, but it will open the corresponding material in the preview window, if a model has multiple materials, which is a superior feature
+            auto materialsTabControl = reinterpret_cast<irr::gui::IGUITabControl*>(getElementByName("texturePreviewTabControl"));
+
+            materialsTabControl->setActiveTab(materialTabIndex);
+
+            auto textureSize = textureImage->getOriginalSize();
+
+            auto imageRect = image->getAbsolutePosition();
+
+            auto point = irr::core::vector2di((textureSize.Width * uvCoords.X), (textureSize.Height * uvCoords.Y));
+
+            driver->setRenderTarget(renderTarget);
+
+            smgr->setActiveCamera(fixedCamera);
+
+            driver->draw2DImage(textureImage, irr::core::vector2di(0, 0));
+
+            driver->draw2DLine(irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
+            driver->draw2DLine(irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
+
+            driver->setRenderTarget(0);
+
+            smgr->setActiveCamera(camera);
+
+            image->setImage(renderTarget);
+        }
+    }
 }
 
 void ApplicationDelegate::drawSelectedTriangle3D()
