@@ -255,47 +255,118 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
             auto point = irr::core::vector2di((textureSize.Width * uvCoords.X), (textureSize.Height * uvCoords.Y));
 
+            selectedTextureImage->copyTo(tempImage);
+
+            for (auto x = 0; x < brushImage->getDimension().Width; ++x) {
+                for (auto y = 0; y < brushImage->getDimension().Height; ++y) {
+                    auto brushColor = brushImage->getPixel(x, y);
+                    auto originalColor = tempImage->getPixel(point.X + x, point.Y + y);
+
+                    if (brushColor.getAlpha() == 0) { // || originalColor.getAlpha() == 0) {
+                        continue;
+                    }
+
+                    if (brushColor.getAlpha() == 255) {
+                        tempImage->setPixel(point.X + x, point.Y + y, brushColor, false);
+                        continue;
+                    }
+
+                    /*
+                        Alpha blending.
+                        
+                        Important: the "front" or "top" or "overlay" color must be (r0, g0, b0, a0)
+                        whilst the "back" or "bottom" or "background" color must be (r1, g1, b1, a1)
+                        or the results will be unpredictable
+                    */
+                    auto a1 = originalColor.getAlpha();
+                    auto r1 = originalColor.getRed();
+                    auto g1 = originalColor.getGreen();
+                    auto b1 = originalColor.getBlue();
+
+                    auto a0 = brushColor.getAlpha();
+                    auto r0 = brushColor.getRed();
+                    auto g0 = brushColor.getGreen();
+                    auto b0 = brushColor.getBlue();
+
+                    auto a00 = a0 / 255.f;
+                    auto a01 = a1 / 255.f;
+
+                    auto finalColor = irr::video::SColor(
+                        255 * (a00 + (a01 * (1 - a00))),
+                        ((r0 * a00) + (r1 * a01 * (1 - a00))),
+                        ((g0* a00) + (g1 * a01 * (1 - a00))),
+                        ((b0* a00) + (b1 * a01 * (1 - a00)))
+                    );
+
+                    tempImage->setPixel(point.X + x, point.Y + y, finalColor, false);
+                }
+            }
+
+            driver->removeTexture(tempTexture);
+            tempTexture = driver->addTexture("__tempTexture__", tempImage);
+
+            image->setImage(tempTexture);
+
             if (isDrawing)
             {
-                for (auto x = 0; x < brushImage->getDimension().Width; ++x) {
-                    for (auto y = 0; y < brushImage->getDimension().Height; ++y) {
-                        auto color = brushImage->getPixel(x, y);
-
-                        if (color.getAlpha() == 0) {
-                            continue;
-                        }
-
-                        selectedTextureImage->setPixel(point.X + x, point.Y + y, color, false);
-                    }
-                }
-             
-                driver->removeTexture(tempTexture);
-                tempTexture = driver->addTexture("__tempTexture__", selectedTextureImage);
-                
-                image->setImage(tempTexture);
-            } else
-            {
-                selectedTextureImage->copyTo(tempImage, irr::core::vector2di(0, 0));
-
-                for (auto x = 0; x < brushImage->getDimension().Width; ++x) {
-                    for (auto y = 0; y < brushImage->getDimension().Height; ++y) {
-                        auto color = brushImage->getPixel(x, y);
-
-                        if (color.getAlpha() == 0) {
-                            continue;
-                        }
-
-                        tempImage->setPixel(point.X + x, point.Y + y, color, false);
-                    }
-                }
-
-                driver->removeTexture(tempTexture);
-                tempTexture = driver->addTexture("__tempTexture__", tempImage);
-
-                image->setImage(tempTexture);
+                tempImage->copyTo(selectedTextureImage);
             }
         }
     }
+}
+
+irr::video::IImage* ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
+{
+    const auto size = (brushSize + featherRadius) * 2;
+
+    auto brush = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(size, size));
+
+    brush->fill(irr::video::SColor(0, 0, 0, 0));
+
+    auto maxDistance = featherRadius + brushSize;
+
+    irr::core::vector2df centre(size / 2, size / 2);
+
+    for (auto x = 0; x < size; ++x) {
+        for (auto y = 0; y < size; ++y) {
+            auto distanceFromCentre = irr::core::vector2df(x, y).getDistanceFrom(centre); // sqrt(pow(((size / 2) - x), 2) + pow(((size / 2) - y), 2));
+
+            if (distanceFromCentre <= brushSize)
+            {
+                brush->setPixel(x, y, color);
+            }
+            else if (featherRadius > 0)
+            {
+                if (distanceFromCentre <= brushSize + featherRadius)
+                {
+                    // linear interpolation:
+                    //
+                    // x = distanceFromCentre
+                    // y = y0 + ((x - x0) * ((y1 - y0) / (x1 - x0)))
+                    // 
+                    // x0 = brushSize
+                    // y0 = 1
+                    // x1 = brushSize + featherRadius
+                    // y1 = 0
+                    // y = 1 + ((distanceFromCentre - brushSize) * ((0 - 1) / (brushSize + featherRadius - brushSize)) = 1 + ((distanceFromCentre - brushSize) * (-1 / featherRadius)
+                    //
+                    // alternatively:
+                    // 
+                    // x0 = brushSize + featherRadius
+                    // y0 = 0
+                    // x1 = brushSize
+                    // y1 = 1
+                    // y = 0 + ((distanceFromCentre - brushSize - featherRadius) * ((1 - 0) / (brushSize - brushSize - featherRadius))) = ((distanceFromCentre - brushSize - featherRadius) * (1 / (-featherRadius)))
+
+                    auto multiplier = 1 + ((distanceFromCentre - brushSize) * (-1 / featherRadius));
+
+                    brush->setPixel(x, y, irr::video::SColor(multiplier * 255, color.getRed(), color.getGreen(), color.getBlue()));
+                }
+            }
+        }
+    }
+
+    return brush;
 }
 
 void ApplicationDelegate::beginDrawing()
@@ -411,41 +482,9 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
         tempTexture = driver->addTexture("__tempTexture__", tempImage);
     }
 
-    brushImage = createBrush(25, 5, irr::video::SColor(255, 0, 0, 0));
+    brushImage = createBrush(25, 25, irr::video::SColor(255, 0, 0, 0));
 
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
-}
-
-irr::video::IImage* ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
-{
-    const auto size = (brushSize + featherRadius) * 2;
-
-    auto brush = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(size, size));
-
-    brush->fill(irr::video::SColor(0, 0, 0, 0));
-
-    auto maxDistance = sqrt((size / 2, 2) + pow(size / 2, 2)) - featherRadius;
-
-    for (auto x = 0; x < size; ++x) {
-        for (auto y = 0; y < size; ++y) {
-            auto distanceFromCentre = sqrt(pow(((size / 2) - x), 2) + pow(((size / 2) - y), 2));
-
-            if (distanceFromCentre <= brushSize) {
-                brush->setPixel(x, y, color);
-            }
-            else if (featherRadius > 0)
-            {
-                if (distanceFromCentre <= brushSize + featherRadius)
-                {
-                    auto multiplier = (1 - ((distanceFromCentre - brushSize) / maxDistance));
-
-                    brush->setPixel(x, y, irr::video::SColor(multiplier * 255, multiplier * color.getRed(), multiplier * color.getGreen(), multiplier * color.getBlue()));
-                }
-            }
-        }
-    }
-
-    return brush;
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
