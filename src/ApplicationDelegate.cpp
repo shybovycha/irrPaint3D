@@ -259,7 +259,10 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
             auto textureSize = textureImage->getOriginalSize();
 
-            auto point = irr::core::vector2di((textureSize.Width * uvCoords.X), (textureSize.Height * uvCoords.Y));
+            auto point = irr::core::vector2di(
+                (textureSize.Width * uvCoords.X) - (brushImage->getDimension().Width / 2),
+                (textureSize.Height * uvCoords.Y) - (brushImage->getDimension().Height / 2)
+            );
 
             selectedTextureImage->copyTo(tempImage);
 
@@ -268,7 +271,7 @@ void ApplicationDelegate::drawSelectedTriangle2D()
                     auto brushColor = brushImage->getPixel(x, y);
                     auto originalColor = tempImage->getPixel(point.X + x, point.Y + y);
 
-                    if (brushColor.getAlpha() == 0) { // || originalColor.getAlpha() == 0) {
+                    if (brushColor.getAlpha() == 0) {
                         continue;
                     }
 
