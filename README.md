@@ -16,7 +16,7 @@ If your model has multiple materials with textures, the ones without textures ar
 Features still not implemented but required:
 
 - [x] Actually drawing on the model
-- [ ] Saving the modified texture
+- [x] Saving the modified texture
 
 ### Optional
 

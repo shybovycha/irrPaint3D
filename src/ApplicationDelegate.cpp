@@ -412,14 +412,18 @@ bool ApplicationDelegate::isMouseOverGUI()
 void ApplicationDelegate::saveTexture()
 {
     if (textureFilename.empty()) {
-        auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
+        auto saveTextureDialog = new SaveFileDialog(L"Save texture as", guienv, 0, -1);
 
         if (saveTextureDialog == nullptr) {
             std::cerr << "Could not save texture to a non-existent (empty name) file" << std::endl;
             return;
         }
 
-        textureFilename = saveTextureDialog->getFileName();
+        saveTextureDialog->setName("saveTextureDialog");
+
+        guienv->getRootGUIElement()->addChild(saveTextureDialog);
+
+        return;
     }
 
     saveTexture(textureFilename);
@@ -427,7 +431,7 @@ void ApplicationDelegate::saveTexture()
 
 void ApplicationDelegate::saveTexture(const std::wstring& filename)
 {
-    // TODO: implement
+    driver->writeImageToFile(selectedTextureImage, filename.c_str());
 }
 
 void ApplicationDelegate::loadModel(const std::wstring& filename)
@@ -495,6 +499,10 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
     auto toolWindow = reinterpret_cast<irr::gui::IGUIWindow*>(getElementByName("toolWindow"));
     toolWindow->setVisible(true);
+
+    auto saveTextureButton = reinterpret_cast<irr::gui::IGUIButton*>(getElementByName("saveTextureButton"));
+    saveTextureButton->setVisible(true);
+    saveTextureButton->setEnabled(true);
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
