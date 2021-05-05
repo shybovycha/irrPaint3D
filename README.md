@@ -7,7 +7,7 @@ This application aims at imlpementing painting 3D models in realtime.
 Currently application only picks the UV coordinates of a selected point on a 3D model and shows it in a texture preview window.
 If your model has multiple materials with textures, the ones without textures are not displayed - there is simply no reason for that.
 
-![Screenshot](https://raw.githubusercontent.com/shybovycha/irrPaint3D/master/media/screenshot2.png)
+![Screenshot](https://raw.githubusercontent.com/shybovycha/irrPaint3D/master/media/screenshot3.png)
 
 ## TODO
 
@@ -15,18 +15,18 @@ If your model has multiple materials with textures, the ones without textures ar
 
 Features still not implemented but required:
 
-- [ ] Actually drawing on the model
-- [ ] Saving the modified texture
+- [x] Actually drawing on the model
+- [x] Saving the modified texture
 
 ### Optional
 
 Things that are not really required but which would greatly improve user experience:
 
-- [ ] Translating / rotating / scaling the model instead of the camera
-- [ ] Choosing the brushes - color, size, opacity
-- [ ] Preventing screen from flickering with black when hovering over model
+- [-] Translating / rotating / scaling the camera from UI
+- [x] Choosing the brushes - color, size, opacity
+- [x] Preventing screen from flickering with black when hovering over model
 - [ ] Pointing to the selected point on a model with 3D arrow instead of highlighting the whole triangle
-- [ ] Updating model texture on the fly
+- [x] Updating model texture on the fly
 
 ## Compiling and running
 

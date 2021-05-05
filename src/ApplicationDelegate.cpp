@@ -6,24 +6,30 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     guienv(device->getGUIEnvironment()),
     driver(device->getVideoDriver()),
     camera(nullptr),
-    fixedCamera(nullptr),
     loadModelDialogIsOpen(false),
     saveTextureDialogIsOpen(false),
     triangleSelector(nullptr),
     modelMesh(nullptr),
     modelSceneNode(nullptr),
-    renderTarget(nullptr)
+    brushImage(nullptr),
+    brushTexture(nullptr),
+    selectedTextureImage(nullptr),
+    selectedTexture(nullptr),
+    tempImage(nullptr),
+    tempTexture(nullptr),
+    brushSize(25),
+    brushFeatherRadius(5),
+    brushColor(irr::video::SColor(255, 0, 0, 0)),
+    isDrawing(false),
+    previousIsDrawing(false)
 {
 }
 
 void ApplicationDelegate::initialize()
 {
-    camera = smgr->addCameraSceneNodeMaya();
-    fixedCamera = smgr->addCameraSceneNode();
+    camera = smgr->addCameraSceneNode();
 
     smgr->setActiveCamera(camera);
-
-    renderTarget = driver->addRenderTargetTexture(irr::core::dimension2du(1024, 1024), "RTT1");
 
     initGUI();
 }
@@ -80,10 +86,6 @@ void ApplicationDelegate::resetFont()
 
 void ApplicationDelegate::quit()
 {
-    if (modelMesh != nullptr) {
-        modelMesh->drop();
-    }
-
     device->closeDevice();
 }
 
@@ -91,18 +93,16 @@ void ApplicationDelegate::update()
 {
     driver->beginScene(true, true, irr::video::SColor(0, 200, 200, 200));
 
-    drawSelectedTriangle2D();
-
     smgr->drawAll();
 
-    guienv->drawAll();
+    paintTextureUnderCursor();
 
-    drawSelectedTriangle3D();
+    guienv->drawAll();
 
     driver->endScene();
 }
 
-void ApplicationDelegate::drawSelectedTriangle2D()
+void ApplicationDelegate::paintTextureUnderCursor()
 {
     if (triangleSelector == nullptr) {
         return;
@@ -117,7 +117,20 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     int matchedTriangles = 0;
 
-    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
+    auto cursorPosition = device->getCursorControl()->getPosition();
+
+    if (cursorPosition == previousMouseCursorPosition && previousIsDrawing == isDrawing)
+    {
+        // mouse cursor position did not change - no need to perform all these operations
+        return;
+    }
+    else
+    {
+        previousMouseCursorPosition = cursorPosition;
+        previousIsDrawing = isDrawing;
+    }
+
+    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(cursorPosition, camera);
 
     irr::core::vector3df collisionPoint;
     irr::core::triangle3df selectedTriangle;
@@ -139,17 +152,15 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     auto currentMaterialTab = materialsTabControl->getTab(currentMaterialTabIndex);
 
-    auto image = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("image", currentMaterialTab));
+    auto texturePreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("image", currentMaterialTab));
 
-    if (image == nullptr) {
+    if (texturePreviewImage == nullptr) {
         return;
     }
 
     auto meshSceneNode = reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode);
     auto animatedMesh = meshSceneNode->getMesh();
     
-    // auto uv = getPointUV(selectedTriangle, collisionPoint, meshSceneNode);
-
     {
         irr::video::S3DVertex A, B, C;
 
@@ -246,67 +257,173 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
             auto textureSize = textureImage->getOriginalSize();
 
-            auto imageRect = image->getAbsolutePosition();
+            auto point = irr::core::vector2di(
+                (textureSize.Width * uvCoords.X) - (brushImage->getDimension().Width / 2),
+                (textureSize.Height * uvCoords.Y) - (brushImage->getDimension().Height / 2)
+            );
 
-            auto point = irr::core::vector2di((textureSize.Width * uvCoords.X), (textureSize.Height * uvCoords.Y));
+            selectedTextureImage->copyTo(tempImage);
 
-            driver->setRenderTarget(renderTarget);
+            for (auto x = 0; x < brushImage->getDimension().Width; ++x) {
+                for (auto y = 0; y < brushImage->getDimension().Height; ++y) {
+                    auto brushColor = brushImage->getPixel(x, y);
+                    auto originalColor = tempImage->getPixel(point.X + x, point.Y + y);
 
-            smgr->setActiveCamera(fixedCamera);
+                    if (brushColor.getAlpha() == 0) {
+                        continue;
+                    }
 
-            driver->draw2DImage(textureImage, irr::core::vector2di(0, 0));
+                    if (brushColor.getAlpha() == 255) {
+                        tempImage->setPixel(point.X + x, point.Y + y, brushColor, false);
+                        continue;
+                    }
 
-            driver->draw2DLine(irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
-            driver->draw2DLine(irr::core::position2di(point.X + TEXTURE_CURSOR_SIZE, point.Y - TEXTURE_CURSOR_SIZE), irr::core::position2di(point.X - TEXTURE_CURSOR_SIZE, point.Y + TEXTURE_CURSOR_SIZE), TRIANGLE_COLOR);
+                    /*
+                        Alpha blending.
+                        
+                        Important: the "front" or "top" or "overlay" color must be (r0, g0, b0, a0)
+                        whilst the "back" or "bottom" or "background" color must be (r1, g1, b1, a1)
+                        or the results will be unpredictable
+                    */
+                    auto a1 = originalColor.getAlpha();
+                    auto r1 = originalColor.getRed();
+                    auto g1 = originalColor.getGreen();
+                    auto b1 = originalColor.getBlue();
 
-            driver->setRenderTarget(0);
+                    auto a0 = brushColor.getAlpha();
+                    auto r0 = brushColor.getRed();
+                    auto g0 = brushColor.getGreen();
+                    auto b0 = brushColor.getBlue();
 
-            smgr->setActiveCamera(camera);
+                    auto a00 = a0 / 255.f;
+                    auto a01 = a1 / 255.f;
 
-            image->setImage(renderTarget);
+                    auto finalColor = irr::video::SColor(
+                        255 * (a00 + (a01 * (1 - a00))),
+                        ((r0 * a00) + (r1 * a01 * (1 - a00))),
+                        ((g0* a00) + (g1 * a01 * (1 - a00))),
+                        ((b0* a00) + (b1 * a01 * (1 - a00)))
+                    );
+
+                    tempImage->setPixel(point.X + x, point.Y + y, finalColor, false);
+                }
+            }
+
+            driver->removeTexture(tempTexture);
+            tempTexture = driver->addTexture("__tempTexture__", tempImage);
+
+            selectedNode->setMaterialTexture(0, tempTexture);
+
+            texturePreviewImage->setImage(tempTexture);
+
+            if (isDrawing)
+            {
+                tempImage->copyTo(selectedTextureImage);
+            }
         }
     }
 }
 
-void ApplicationDelegate::drawSelectedTriangle3D()
+void ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
 {
-    if (triangleSelector == nullptr) {
-        return;
+    const auto size = (brushSize + featherRadius) * 2;
+
+    auto brush = driver->createImage(irr::video::ECF_A8R8G8B8, irr::core::dimension2du(size, size));
+
+    brush->fill(irr::video::SColor(0, 0, 0, 0));
+
+    auto maxDistance = featherRadius + brushSize;
+
+    irr::core::vector2df centre(size / 2, size / 2);
+
+    for (auto x = 0; x < size; ++x) {
+        for (auto y = 0; y < size; ++y) {
+            auto distanceFromCentre = irr::core::vector2df(x, y).getDistanceFrom(centre); // sqrt(pow(((size / 2) - x), 2) + pow(((size / 2) - y), 2));
+
+            if (distanceFromCentre <= brushSize)
+            {
+                brush->setPixel(x, y, color);
+            }
+            else if (featherRadius > 0)
+            {
+                if (distanceFromCentre <= brushSize + featherRadius)
+                {
+                    // linear interpolation:
+                    //
+                    // x = distanceFromCentre
+                    // y = y0 + ((x - x0) * ((y1 - y0) / (x1 - x0)))
+                    // 
+                    // x0 = brushSize
+                    // y0 = 1
+                    // x1 = brushSize + featherRadius
+                    // y1 = 0
+                    // y = 1 + ((distanceFromCentre - brushSize) * ((0 - 1) / (brushSize + featherRadius - brushSize)) = 1 + ((distanceFromCentre - brushSize) * (-1 / featherRadius)
+                    //
+                    // alternatively:
+                    // 
+                    // x0 = brushSize + featherRadius
+                    // y0 = 0
+                    // x1 = brushSize
+                    // y1 = 1
+                    // y = 0 + ((distanceFromCentre - brushSize - featherRadius) * ((1 - 0) / (brushSize - brushSize - featherRadius))) = ((distanceFromCentre - brushSize - featherRadius) * (1 / (-featherRadius)))
+
+                    auto multiplier = 1 + ((distanceFromCentre - brushSize) * (-1 / featherRadius));
+
+                    brush->setPixel(x, y, irr::video::SColor(multiplier * 255, color.getRed(), color.getGreen(), color.getBlue()));
+                }
+            }
+        }
     }
 
-    const unsigned int MAX_TRIANGLES = 100;
-    const auto TRIANGLE_COLOR = irr::video::SColor(255, 0, 255, 0);
-
-    auto triangles = new irr::core::triangle3df[MAX_TRIANGLES];
-
-    int matchedTriangles = 0;
-
-    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
-
-    irr::core::vector3df collisionPoint;
-    irr::core::triangle3df selectedTriangle;
-    irr::scene::ISceneNode* selectedNode;
-
-    bool collisionDetected = smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
-
-    if (!collisionDetected) {
-        return;
+    if (brushTexture != nullptr)
+    {
+        driver->removeTexture(brushTexture);
     }
 
-    driver->draw3DTriangle(selectedTriangle, TRIANGLE_COLOR);
+    brushImage = brush;
+
+    brushTexture = driver->addTexture("__brush__", brushImage);
+}
+
+void ApplicationDelegate::beginDrawing()
+{
+    isDrawing = true;
+}
+
+void ApplicationDelegate::endDrawing()
+{
+    isDrawing = false;
+}
+
+bool ApplicationDelegate::isMouseOverGUI()
+{
+    auto element = device->getGUIEnvironment()->getFocus();
+
+    if (element == nullptr)
+    {
+        return false;
+    }
+
+    std::string elementName = element->getName();
+
+    return elementName != "modelViewer";
 }
 
 void ApplicationDelegate::saveTexture()
 {
     if (textureFilename.empty()) {
-        auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
+        auto saveTextureDialog = new SaveFileDialog(L"Save texture as", guienv, 0, -1);
 
         if (saveTextureDialog == nullptr) {
             std::cerr << "Could not save texture to a non-existent (empty name) file" << std::endl;
             return;
         }
 
-        textureFilename = saveTextureDialog->getFileName();
+        saveTextureDialog->setName("saveTextureDialog");
+
+        guienv->getRootGUIElement()->addChild(saveTextureDialog);
+
+        return;
     }
 
     saveTexture(textureFilename);
@@ -314,13 +431,13 @@ void ApplicationDelegate::saveTexture()
 
 void ApplicationDelegate::saveTexture(const std::wstring& filename)
 {
-    // TODO: implement
+    driver->writeImageToFile(selectedTextureImage, filename.c_str());
 }
 
 void ApplicationDelegate::loadModel(const std::wstring& filename)
 {
     if (modelSceneNode != nullptr) {
-        modelSceneNode->drop();
+        modelSceneNode->remove();
     }
 
     if (filename.empty()) {
@@ -329,10 +446,6 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
     }
 
     modelMesh = smgr->getMesh(filename.c_str());
-
-    if (triangleSelector != nullptr) {
-        triangleSelector->drop();
-    }
 
     modelSceneNode = smgr->addAnimatedMeshSceneNode(modelMesh);
 
@@ -360,16 +473,36 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
         auto tab = materialsTabControl->addTab(tabCaption.str().c_str());
 
-        auto textureImage = guienv->addImage(texture, irr::core::vector2di(10, 10));
+        auto textureImage = guienv->addImage(irr::core::recti(10, 10, tab->getAbsoluteClippingRect().getWidth() - 10, tab->getAbsoluteClippingRect().getHeight() - 10));
+        
+        textureImage->setImage(texture);
 
         textureImage->setName("image");
+        textureImage->setScaleImage(true);
 
         tab->addChild(textureImage);
 
         textureImage->setScaleImage(true);
+
+        // TODO: refactor this to be done on every __tab change__ and potentially use some caching
+        selectedTextureImage = driver->createImage(texture, irr::core::vector2di(0, 0), texture->getOriginalSize());
+        
+        tempImage = driver->createImage(irr::video::ECF_A8R8G8B8, selectedTextureImage);
+        tempTexture = driver->addTexture("__tempTexture__", tempImage);
     }
 
+    createBrush(brushSize, brushFeatherRadius, brushColor);
+
+    updatePropertiesWindow();
+
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+
+    auto toolWindow = reinterpret_cast<irr::gui::IGUIWindow*>(getElementByName("toolWindow"));
+    toolWindow->setVisible(true);
+
+    auto saveTextureButton = reinterpret_cast<irr::gui::IGUIButton*>(getElementByName("saveTextureButton"));
+    saveTextureButton->setVisible(true);
+    saveTextureButton->setEnabled(true);
 }
 
 void ApplicationDelegate::openSaveTextureDialog()
@@ -397,7 +530,7 @@ void ApplicationDelegate::closeSaveTextureDialog()
 {
     auto saveTextureDialog = reinterpret_cast<SaveFileDialog*>(getElementByName("saveTextureDialog"));
 
-    saveTextureDialog->drop();
+    saveTextureDialog->remove();
 
     saveTextureDialogIsOpen = false;
 }
@@ -417,7 +550,90 @@ void ApplicationDelegate::closeLoadModelDialog()
 {
     auto loadModelDialog = reinterpret_cast<irr::gui::IGUIFileOpenDialog*>(getElementByName("loadModelDialog"));
 
-    loadModelDialog->drop();
+    loadModelDialog->remove();
 
     loadModelDialogIsOpen = false;
+}
+
+void ApplicationDelegate::updatePropertiesWindow()
+{
+    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
+    brushSizeSlider->setPos(brushSize);
+
+    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
+    brushFeatherSizeSlider->setPos(brushFeatherRadius);
+
+    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
+    brushRedColorSlider->setPos(brushColor.getRed());
+
+    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
+    brushGreenColorSlider->setPos(brushColor.getGreen());
+
+    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
+    brushBlueColorSlider->setPos(brushColor.getRed());
+
+    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
+    brushPreviewImage->setImage(brushTexture);
+
+    brushPreviewImage->setScaleImage(true);
+
+    /*brushPreviewImage->getAbsoluteClippingRect().getWidth() < brushTexture->getSize().Width ||
+    brushPreviewImage->getAbsoluteClippingRect().getHeight() < brushTexture->getSize().Height*/
+}
+
+void ApplicationDelegate::updateBrushProperties()
+{
+    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
+    brushSize = brushSizeSlider->getPos();
+
+    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
+    brushFeatherRadius = brushFeatherSizeSlider->getPos();
+
+    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
+    auto brushRed = brushRedColorSlider->getPos();
+
+    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
+    auto brushGreen = brushGreenColorSlider->getPos();
+
+    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
+    auto brushBlue = brushBlueColorSlider->getPos();
+
+    brushColor = irr::video::SColor(255, brushRed, brushGreen, brushBlue);
+
+    createBrush(brushSize, brushFeatherRadius, brushColor);
+
+    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
+    brushPreviewImage->setImage(brushTexture);
+
+    brushPreviewImage->setScaleImage(
+        brushPreviewImage->getAbsoluteClippingRect().getWidth() < brushTexture->getSize().Width ||
+        brushPreviewImage->getAbsoluteClippingRect().getHeight() < brushTexture->getSize().Height
+    );
+}
+
+void ApplicationDelegate::updateModelProperties()
+{
+    // auto modelScaleSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelScaleSlider"));
+    // auto scale = modelScaleSlider->getPos();
+
+    // auto modelRotationYSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelRotationYSlider"));
+    // auto rotationY = modelRotationYSlider->getPos();
+
+    auto modelOffsetXSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetXSlider"));
+    auto x = modelOffsetXSlider->getPos();
+
+    auto modelOffsetYSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetYSlider"));
+    auto y = modelOffsetYSlider->getPos();
+
+    auto modelOffsetZSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetZSlider"));
+    auto z = modelOffsetZSlider->getPos();
+
+    // TODO: changing the model transform has a negative impact on triangleSelector working - it just stops working
+    // modelSceneNode->setScale(irr::core::vector3df(scale));
+    // modelSceneNode->setRotation(irr::core::vector3df(0, rotationY, 0));
+    camera->setPosition(irr::core::vector3df(x, y, z));
+
+    // triangleSelector->drop();
+    // triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+    // camera->setTriangleSelector(triangleSelector);
 }

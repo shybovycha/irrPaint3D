@@ -17,19 +17,6 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
         return false;
     }
 
-    //if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
-    //{
-    //    if (event.MouseInput.isLeftPressed() && applicationDelegate->isMouseOverGUI())
-    //    {
-    //        return true;
-    //    }
-
-    //    if (event.MouseInput.Event == irr::EMIE_MOUSE_MOVED)
-    //    {
-    //        // TODO: draw on a texture
-    //    }
-    //}
-
     if (event.EventType == irr::EET_GUI_EVENT)
     {
         if (event.GUIEvent.EventType == irr::gui::EGET_FILE_SELECTED)
@@ -84,6 +71,47 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
             }
 
             return false;
+        }
+
+        if (event.GUIEvent.EventType == irr::gui::EGET_SCROLL_BAR_CHANGED)
+        {
+            auto slider = reinterpret_cast<irr::gui::IGUIScrollBar*>(event.GUIEvent.Caller);
+
+            std::string sliderName = slider->getName();
+
+            if (sliderName == "brushSizeSlider"
+                || sliderName == "brushFeatherSizeScroll"
+                || sliderName == "brushColorRedSlider"
+                || sliderName == "brushColorGreenSlider"
+                || sliderName == "brushColorBlueSlider")
+            {
+                applicationDelegate->updateBrushProperties();
+
+                return true;
+            }
+
+            if (sliderName == "modelScaleSlider"
+                || sliderName == "modelRotationYSlider"
+                || sliderName == "modelOffsetXSlider"
+                || sliderName == "modelOffsetYSlider"
+                || sliderName == "modelOffsetZSlider")
+            {
+                applicationDelegate->updateModelProperties();
+
+                return true;
+            }
+        }
+    }
+
+    if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
+    {
+        if (event.MouseInput.isLeftPressed() && !applicationDelegate->isMouseOverGUI())
+        {
+            applicationDelegate->beginDrawing();
+        }
+        else
+        {
+            applicationDelegate->endDrawing();
         }
     }
 
