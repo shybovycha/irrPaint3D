@@ -40,6 +40,8 @@ public:
     void endDrawing();
 
     void updateBrushProperties();
+    
+    void updateModelProperties();
 
     void quit();
 

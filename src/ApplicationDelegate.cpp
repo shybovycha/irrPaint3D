@@ -27,7 +27,7 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
 
 void ApplicationDelegate::initialize()
 {
-    camera = smgr->addCameraSceneNodeMaya();
+    camera = smgr->addCameraSceneNode();
 
     smgr->setActiveCamera(camera);
 
@@ -82,31 +82,6 @@ void ApplicationDelegate::resetFont()
 {
     irr::gui::IGUIFont* font = guienv->getFont("media/calibri.xml");
     guienv->getSkin()->setFont(font);
-}
-
-void ApplicationDelegate::updateBrushProperties()
-{
-    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
-    brushSize = brushSizeSlider->getPos();
-
-    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
-    brushFeatherRadius = brushFeatherSizeSlider->getPos();
-
-    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
-    auto brushRed = brushRedColorSlider->getPos();
-
-    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
-    auto brushGreen = brushGreenColorSlider->getPos();
-
-    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
-    auto brushBlue = brushBlueColorSlider->getPos();
-
-    brushColor = irr::video::SColor(255, brushRed, brushGreen, brushBlue);
-
-    createBrush(brushSize, brushFeatherRadius, brushColor);
-
-    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
-    brushPreviewImage->setImage(brushTexture);
 }
 
 void ApplicationDelegate::quit()
@@ -600,8 +575,65 @@ void ApplicationDelegate::updatePropertiesWindow()
     auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
     brushPreviewImage->setImage(brushTexture);
 
+    brushPreviewImage->setScaleImage(true);
+
+    /*brushPreviewImage->getAbsoluteClippingRect().getWidth() < brushTexture->getSize().Width ||
+    brushPreviewImage->getAbsoluteClippingRect().getHeight() < brushTexture->getSize().Height*/
+}
+
+void ApplicationDelegate::updateBrushProperties()
+{
+    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
+    brushSize = brushSizeSlider->getPos();
+
+    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
+    brushFeatherRadius = brushFeatherSizeSlider->getPos();
+
+    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
+    auto brushRed = brushRedColorSlider->getPos();
+
+    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
+    auto brushGreen = brushGreenColorSlider->getPos();
+
+    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
+    auto brushBlue = brushBlueColorSlider->getPos();
+
+    brushColor = irr::video::SColor(255, brushRed, brushGreen, brushBlue);
+
+    createBrush(brushSize, brushFeatherRadius, brushColor);
+
+    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
+    brushPreviewImage->setImage(brushTexture);
+
     brushPreviewImage->setScaleImage(
         brushPreviewImage->getAbsoluteClippingRect().getWidth() < brushTexture->getSize().Width ||
         brushPreviewImage->getAbsoluteClippingRect().getHeight() < brushTexture->getSize().Height
     );
+}
+
+void ApplicationDelegate::updateModelProperties()
+{
+    // auto modelScaleSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelScaleSlider"));
+    // auto scale = modelScaleSlider->getPos();
+
+    // auto modelRotationYSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelRotationYSlider"));
+    // auto rotationY = modelRotationYSlider->getPos();
+
+    auto modelOffsetXSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetXSlider"));
+    auto x = modelOffsetXSlider->getPos();
+
+    auto modelOffsetYSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetYSlider"));
+    auto y = modelOffsetYSlider->getPos();
+
+    auto modelOffsetZSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("modelOffsetZSlider"));
+    auto z = modelOffsetZSlider->getPos();
+
+    // TODO: changing the model transform has a negative impact on triangleSelector working - it just stops working
+    // modelSceneNode->setScale(irr::core::vector3df(scale));
+    // modelSceneNode->setRotation(irr::core::vector3df(0, rotationY, 0));
+    camera->setPosition(irr::core::vector3df(x, y, z));
+
+    // triangleSelector->drop();
+    // triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+    // camera->setTriangleSelector(triangleSelector);
 }

@@ -106,6 +106,15 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
             {
                 applicationDelegate->updateBrushProperties();
             }
+
+            if (sliderName == "modelScaleSlider"
+                || sliderName == "modelRotationYSlider"
+                || sliderName == "modelOffsetXSlider"
+                || sliderName == "modelOffsetYSlider"
+                || sliderName == "modelOffsetZSlider")
+            {
+                applicationDelegate->updateModelProperties();
+            }
         }
     }
 
