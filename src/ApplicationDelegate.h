@@ -43,6 +43,8 @@ public:
     
     void updateModelProperties();
 
+    bool isMouseOverGUI();
+
     void quit();
 
 private:
@@ -52,8 +54,7 @@ private:
 
     void resetFont();
 
-    void drawSelectedTriangle2D();
-    void drawSelectedTriangle3D();
+    void paintTextureUnderCursor();
 
     irr::gui::IGUIElement* getElementByName(const std::string& name);
     irr::gui::IGUIElement* getElementByName(const std::string& name, irr::gui::IGUIElement* parent);

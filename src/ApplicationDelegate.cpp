@@ -93,18 +93,16 @@ void ApplicationDelegate::update()
 {
     driver->beginScene(true, true, irr::video::SColor(0, 200, 200, 200));
 
-    drawSelectedTriangle2D();
-
     smgr->drawAll();
 
-    guienv->drawAll();
+    paintTextureUnderCursor();
 
-    drawSelectedTriangle3D();
+    guienv->drawAll();
 
     driver->endScene();
 }
 
-void ApplicationDelegate::drawSelectedTriangle2D()
+void ApplicationDelegate::paintTextureUnderCursor()
 {
     if (triangleSelector == nullptr) {
         return;
@@ -154,9 +152,9 @@ void ApplicationDelegate::drawSelectedTriangle2D()
 
     auto currentMaterialTab = materialsTabControl->getTab(currentMaterialTabIndex);
 
-    auto image = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("image", currentMaterialTab));
+    auto texturePreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("image", currentMaterialTab));
 
-    if (image == nullptr) {
+    if (texturePreviewImage == nullptr) {
         return;
     }
 
@@ -314,7 +312,9 @@ void ApplicationDelegate::drawSelectedTriangle2D()
             driver->removeTexture(tempTexture);
             tempTexture = driver->addTexture("__tempTexture__", tempImage);
 
-            image->setImage(tempTexture);
+            selectedNode->setMaterialTexture(0, tempTexture);
+
+            texturePreviewImage->setImage(tempTexture);
 
             if (isDrawing)
             {
@@ -395,32 +395,18 @@ void ApplicationDelegate::endDrawing()
     isDrawing = false;
 }
 
-void ApplicationDelegate::drawSelectedTriangle3D()
+bool ApplicationDelegate::isMouseOverGUI()
 {
-    if (triangleSelector == nullptr) {
-        return;
+    auto element = device->getGUIEnvironment()->getFocus();
+
+    if (element == nullptr)
+    {
+        return false;
     }
 
-    const unsigned int MAX_TRIANGLES = 100;
-    const auto TRIANGLE_COLOR = irr::video::SColor(255, 0, 255, 0);
+    std::string elementName = element->getName();
 
-    auto triangles = new irr::core::triangle3df[MAX_TRIANGLES];
-
-    int matchedTriangles = 0;
-
-    irr::core::line3df ray = smgr->getSceneCollisionManager()->getRayFromScreenCoordinates(device->getCursorControl()->getPosition(), camera);
-
-    irr::core::vector3df collisionPoint;
-    irr::core::triangle3df selectedTriangle;
-    irr::scene::ISceneNode* selectedNode;
-
-    bool collisionDetected = smgr->getSceneCollisionManager()->getCollisionPoint(ray, triangleSelector, collisionPoint, selectedTriangle, selectedNode);
-
-    if (!collisionDetected) {
-        return;
-    }
-
-    driver->draw3DTriangle(selectedTriangle, TRIANGLE_COLOR);
+    return elementName != "modelViewer";
 }
 
 void ApplicationDelegate::saveTexture()
@@ -506,6 +492,9 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
     updatePropertiesWindow();
 
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
+
+    auto toolWindow = reinterpret_cast<irr::gui::IGUIWindow*>(getElementByName("toolWindow"));
+    toolWindow->setVisible(true);
 }
 
 void ApplicationDelegate::openSaveTextureDialog()

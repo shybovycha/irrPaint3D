@@ -17,25 +17,6 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
         return false;
     }
 
-    if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
-    {
-        if (event.MouseInput.isLeftPressed()) // && applicationDelegate->isMouseOverGUI())
-        {
-            applicationDelegate->beginDrawing();
-            // return false;
-        }
-        else 
-        {
-            applicationDelegate->endDrawing();
-        }
-    }
-
-    //    if (event.MouseInput.Event == irr::EMIE_MOUSE_MOVED)
-    //    {
-    //        // TODO: draw on a texture
-    //    }
-    //}
-
     if (event.EventType == irr::EET_GUI_EVENT)
     {
         if (event.GUIEvent.EventType == irr::gui::EGET_FILE_SELECTED)
@@ -105,6 +86,8 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
                 || sliderName == "brushColorBlueSlider")
             {
                 applicationDelegate->updateBrushProperties();
+
+                return true;
             }
 
             if (sliderName == "modelScaleSlider"
@@ -114,7 +97,21 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
                 || sliderName == "modelOffsetZSlider")
             {
                 applicationDelegate->updateModelProperties();
+
+                return true;
             }
+        }
+    }
+
+    if (event.EventType == irr::EET_MOUSE_INPUT_EVENT)
+    {
+        if (event.MouseInput.isLeftPressed() && !applicationDelegate->isMouseOverGUI())
+        {
+            applicationDelegate->beginDrawing();
+        }
+        else
+        {
+            applicationDelegate->endDrawing();
         }
     }
 
