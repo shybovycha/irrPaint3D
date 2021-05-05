@@ -22,11 +22,11 @@ Features still not implemented but required:
 
 Things that are not really required but which would greatly improve user experience:
 
-- [ ] Translating / rotating / scaling the model instead of the camera
-- [ ] Choosing the brushes - color, size, opacity
-- [ ] Preventing screen from flickering with black when hovering over model
+- [-] Translating / rotating / scaling the camera from UI
+- [x] Choosing the brushes - color, size, opacity
+- [x] Preventing screen from flickering with black when hovering over model
 - [ ] Pointing to the selected point on a model with 3D arrow instead of highlighting the whole triangle
-- [ ] Updating model texture on the fly
+- [x] Updating model texture on the fly
 
 ## Compiling and running
 
