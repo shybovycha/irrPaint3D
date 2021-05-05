@@ -91,6 +91,22 @@ bool IrrlichtEventReceiver::OnEvent(const irr::SEvent& event)
 
             return false;
         }
+
+        if (event.GUIEvent.EventType == irr::gui::EGET_SCROLL_BAR_CHANGED)
+        {
+            auto slider = reinterpret_cast<irr::gui::IGUIScrollBar*>(event.GUIEvent.Caller);
+
+            std::string sliderName = slider->getName();
+
+            if (sliderName == "brushSizeSlider"
+                || sliderName == "brushFeatherSizeScroll"
+                || sliderName == "brushColorRedSlider"
+                || sliderName == "brushColorGreenSlider"
+                || sliderName == "brushColorBlueSlider")
+            {
+                applicationDelegate->updateBrushProperties();
+            }
+        }
     }
 
     return false;

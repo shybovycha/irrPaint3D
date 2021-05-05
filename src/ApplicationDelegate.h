@@ -39,6 +39,8 @@ public:
 
     void endDrawing();
 
+    void updateBrushProperties();
+
     void quit();
 
 private:
@@ -54,7 +56,9 @@ private:
     irr::gui::IGUIElement* getElementByName(const std::string& name);
     irr::gui::IGUIElement* getElementByName(const std::string& name, irr::gui::IGUIElement* parent);
 
-    irr::video::IImage* createBrush(float brushSize, float featherRadius = 0.f, irr::video::SColor color = irr::video::SColor(255, 255, 255, 255));
+    void createBrush(float brushSize, float featherRadius = 0.f, irr::video::SColor color = irr::video::SColor(255, 255, 255, 255));
+
+    void updatePropertiesWindow();
 
     irr::IrrlichtDevice* device;
 
@@ -68,6 +72,8 @@ private:
     irr::scene::IAnimatedMesh* modelMesh;
 
     irr::video::IImage* brushImage;
+    irr::video::ITexture* brushTexture;
+
     irr::video::IImage* selectedTextureImage;
     irr::video::ITexture* selectedTexture;
     
@@ -83,6 +89,10 @@ private:
 
     bool isDrawing;
     bool previousIsDrawing;
+
+    unsigned int brushSize = 25;
+    unsigned int brushFeatherRadius = 5;
+    irr::video::SColor brushColor;
 
     std::wstring textureFilename;
 };

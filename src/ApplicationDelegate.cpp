@@ -12,10 +12,16 @@ ApplicationDelegate::ApplicationDelegate(irr::IrrlichtDevice* _device) :
     modelMesh(nullptr),
     modelSceneNode(nullptr),
     brushImage(nullptr),
+    brushTexture(nullptr),
     selectedTextureImage(nullptr),
     selectedTexture(nullptr),
     tempImage(nullptr),
-    tempTexture(nullptr)
+    tempTexture(nullptr),
+    brushSize(25),
+    brushFeatherRadius(5),
+    brushColor(irr::video::SColor(255, 0, 0, 0)),
+    isDrawing(false),
+    previousIsDrawing(false)
 {
 }
 
@@ -76,6 +82,31 @@ void ApplicationDelegate::resetFont()
 {
     irr::gui::IGUIFont* font = guienv->getFont("media/calibri.xml");
     guienv->getSkin()->setFont(font);
+}
+
+void ApplicationDelegate::updateBrushProperties()
+{
+    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
+    brushSize = brushSizeSlider->getPos();
+
+    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
+    brushFeatherRadius = brushFeatherSizeSlider->getPos();
+
+    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
+    auto brushRed = brushRedColorSlider->getPos();
+
+    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
+    auto brushGreen = brushGreenColorSlider->getPos();
+
+    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
+    auto brushBlue = brushBlueColorSlider->getPos();
+
+    brushColor = irr::video::SColor(255, brushRed, brushGreen, brushBlue);
+
+    createBrush(brushSize, brushFeatherRadius, brushColor);
+
+    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
+    brushPreviewImage->setImage(brushTexture);
 }
 
 void ApplicationDelegate::quit()
@@ -315,7 +346,7 @@ void ApplicationDelegate::drawSelectedTriangle2D()
     }
 }
 
-irr::video::IImage* ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
+void ApplicationDelegate::createBrush(float brushSize, float featherRadius, irr::video::SColor color)
 {
     const auto size = (brushSize + featherRadius) * 2;
 
@@ -366,7 +397,14 @@ irr::video::IImage* ApplicationDelegate::createBrush(float brushSize, float feat
         }
     }
 
-    return brush;
+    if (brushTexture != nullptr)
+    {
+        driver->removeTexture(brushTexture);
+    }
+
+    brushImage = brush;
+
+    brushTexture = driver->addTexture("__brush__", brushImage);
 }
 
 void ApplicationDelegate::beginDrawing()
@@ -467,9 +505,12 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
 
         auto tab = materialsTabControl->addTab(tabCaption.str().c_str());
 
-        auto textureImage = guienv->addImage(texture, irr::core::vector2di(10, 10));
+        auto textureImage = guienv->addImage(irr::core::recti(10, 10, tab->getAbsoluteClippingRect().getWidth() - 10, tab->getAbsoluteClippingRect().getHeight() - 10));
+        
+        textureImage->setImage(texture);
 
         textureImage->setName("image");
+        textureImage->setScaleImage(true);
 
         tab->addChild(textureImage);
 
@@ -482,7 +523,9 @@ void ApplicationDelegate::loadModel(const std::wstring& filename)
         tempTexture = driver->addTexture("__tempTexture__", tempImage);
     }
 
-    brushImage = createBrush(25, 25, irr::video::SColor(255, 0, 0, 0));
+    createBrush(brushSize, brushFeatherRadius, brushColor);
+
+    updatePropertiesWindow();
 
     triangleSelector = smgr->createTriangleSelector(reinterpret_cast<irr::scene::IAnimatedMeshSceneNode*>(modelSceneNode));
 }
@@ -535,4 +578,30 @@ void ApplicationDelegate::closeLoadModelDialog()
     loadModelDialog->remove();
 
     loadModelDialogIsOpen = false;
+}
+
+void ApplicationDelegate::updatePropertiesWindow()
+{
+    auto brushSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushSizeSlider"));
+    brushSizeSlider->setPos(brushSize);
+
+    auto brushFeatherSizeSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushFeatherSizeScroll"));
+    brushFeatherSizeSlider->setPos(brushFeatherRadius);
+
+    auto brushRedColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorRedSlider"));
+    brushRedColorSlider->setPos(brushColor.getRed());
+
+    auto brushGreenColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorGreenSlider"));
+    brushGreenColorSlider->setPos(brushColor.getGreen());
+
+    auto brushBlueColorSlider = reinterpret_cast<irr::gui::IGUIScrollBar*>(getElementByName("brushColorBlueSlider"));
+    brushBlueColorSlider->setPos(brushColor.getRed());
+
+    auto brushPreviewImage = reinterpret_cast<irr::gui::IGUIImage*>(getElementByName("brushPreviewImage"));
+    brushPreviewImage->setImage(brushTexture);
+
+    brushPreviewImage->setScaleImage(
+        brushPreviewImage->getAbsoluteClippingRect().getWidth() < brushTexture->getSize().Width ||
+        brushPreviewImage->getAbsoluteClippingRect().getHeight() < brushTexture->getSize().Height
+    );
 }
